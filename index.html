@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<!-- saved from url=(0052)file:///C:/Users/Hcc/Downloads/attendance_app_1.html -->
+<html lang="ckb" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>سیستەمی ئامادەبوونی کارمەندان</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link href="./سیستەمی ئامادەبوونی کارمەندان_files/css2" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./سیستەمی ئامادەبوونی کارمەندان_files/sql-wasm.js.download"></script>
+<style>
+  :root{
+    --brand:#dbd80f;
+    --brand-dark:#b9b60c;
+    --bg:#f3f4f2;
+    --card:#ffffff;
+    --ink:#1f2420;
+    --muted:#6b7268;
+    --line:#e4e6df;
+    --ok:#2f8f4e;
+    --ok-bg:#e7f6ec;
+    --bad:#c0392b;
+    --bad-bg:#fbeae8;
+    --weekend:#dbe9dc;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Noto Kufi Arabic',sans-serif;}
+  body{min-height:100vh;-webkit-tap-highlight-color:transparent;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+
+  /* ---------- Login ---------- */
+  #loginScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#fbfbe8,var(--bg));padding:20px;
+  }
+  .loginCard{
+    background:var(--card);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.08);
+    padding:32px 26px;width:100%;max-width:380px;text-align:center;
+  }
+  .loginCard h1{font-size:18px;margin:6px 0 4px;}
+  .loginCard p{color:var(--muted);font-size:13px;margin:0 0 22px;}
+  .logo-badge{
+    width:64px;height:64px;border-radius:16px;background:var(--brand);margin:0 auto 12px;
+    display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;
+  }
+  .field{margin-bottom:14px;text-align:right;}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
+  .field input{
+    width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid var(--line);
+    font-size:15px;outline:none;transition:.15s;background:#fafaf8;
+  }
+  .field input:focus{border-color:var(--brand-dark);background:#fff;}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:12px 18px;border-radius:10px;border:none;font-size:14.5px;font-weight:700;
+  }
+  .btn-primary{background:var(--brand);color:#2c2c00;width:100%;}
+  .btn-primary:active{background:var(--brand-dark);}
+  .btn-outline{background:#fff;border:1.5px solid var(--line);color:var(--ink);}
+  .btn-danger{background:var(--bad-bg);color:var(--bad);}
+  .btn-ghost{background:transparent;color:var(--muted);}
+  .btn-sm{padding:8px 12px;font-size:13px;border-radius:8px;}
+  #loginError{color:var(--bad);font-size:13px;margin-top:10px;min-height:16px;}
+
+  /* ---------- App shell ---------- */
+  #app{display:none;min-height:100vh;padding-bottom:30px;}
+  header.topbar{
+    background:var(--brand);position:sticky;top:0;z-index:20;
+    padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+    box-shadow:0 2px 8px rgba(0,0,0,.06);
+  }
+  header.topbar .who{display:flex;flex-direction:column;}
+  header.topbar .who b{font-size:15px;color:#2c2c00;}
+  header.topbar .who span{font-size:11.5px;color:#54530a;}
+  header.topbar .actions{display:flex;gap:8px;align-items:center;}
+  .iconbtn{
+    width:36px;height:36px;border-radius:10px;border:none;background:rgba(0,0,0,.08);
+    display:flex;align-items:center;justify-content:center;font-size:16px;
+  }
+  .container{max-width:760px;margin:0 auto;padding:14px 12px;}
+
+  .card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);border:1px solid var(--line);}
+  .rowbetween{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+
+  select.selectBox{padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:14px;}
+
+  .monthTabs{display:flex;overflow-x:auto;gap:6px;padding:4px 2px 10px;scrollbar-width:none;}
+  .monthTabs::-webkit-scrollbar{display:none;}
+  .monthTab{
+    flex:0 0 auto;padding:8px 14px;border-radius:20px;border:1.5px solid var(--line);
+    background:#fff;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;
+  }
+  .monthTab.active{background:var(--brand);border-color:var(--brand);color:#2c2c00;}
+
+  .weekHeader{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px;}
+  .weekHeader div{text-align:center;font-size:11px;color:var(--muted);font-weight:700;}
+  .calWrap{background:#f7f8f4;border-radius:12px;padding:8px;}
+  .calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .dayCell{
+    aspect-ratio:1/1;border-radius:9px;border:1px solid var(--line);background:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:11.5px;gap:1px;position:relative;min-height:0;overflow:hidden;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  .dayCell.empty{visibility:hidden;box-shadow:none;border:none;}
+  .dayCell.weekend{background:var(--weekend);border-color:#c7ddc8;}
+  .dayCell .num{font-weight:800;font-size:13px;}
+  .dayCell .stats{display:flex;gap:3px;font-size:8.5px;font-weight:700;}
+  .dayCell .p{color:var(--ok);}
+  .dayCell .a{color:var(--bad);}
+  .dayCell.filled{border-color:var(--brand-dark);box-shadow:inset 0 0 0 1.5px var(--brand);}
+  @media(max-width:400px){
+    .container{padding:10px 8px;}
+    .card{padding:10px;}
+    .calWrap{padding:6px;}
+    .calGrid{gap:4px;}
+    .dayCell{border-radius:7px;font-size:10.5px;}
+    .dayCell .num{font-size:12px;}
+    .dayCell .stats{font-size:7.5px;}
+  }
+
+  .sectionTitle{font-size:14px;font-weight:800;margin:0 0 10px;display:flex;align-items:center;gap:6px;}
+
+  /* Modal */
+  .overlay{
+    position:fixed;inset:0;background:rgba(20,20,10,.45);display:none;align-items:flex-end;
+    justify-content:center;z-index:50;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:#fff;width:100%;max-width:480px;border-radius:18px 18px 0 0;
+    max-height:88vh;overflow-y:auto;padding:18px 16px 22px;animation:slideUp .18s ease-out;
+  }
+  @media(min-width:600px){
+    .overlay{align-items:center;}
+    .modal{border-radius:18px;max-height:80vh;}
+  }
+  @keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .modalHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .modalHead h3{margin:0;font-size:16px;}
+  .closeX{background:none;border:none;font-size:20px;color:var(--muted);}
+
+  .shiftRow{
+    border:1.5px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px;
+  }
+  .shiftRow .shiftName{font-weight:700;font-size:13.5px;margin-bottom:8px;display:flex;justify-content:space-between;}
+  .shiftRow .shiftName .code{color:var(--muted);font-weight:500;font-size:11.5px;}
+
+  .empDayRow{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;
+  }
+  .empDayRow .empInfo b{display:block;font-size:13.5px;}
+  .empDayRow .empInfo span{font-size:11px;color:var(--muted);}
+  .empToggleBtns{display:flex;gap:6px;flex:0 0 auto;}
+  .empToggleBtn{
+    padding:8px 12px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
+    font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap;
+  }
+  .empToggleBtn.on-present{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);}
+  .empToggleBtn.on-absent{background:var(--bad-bg);border-color:var(--bad);color:var(--bad);}
+  .numRow{display:flex;gap:8px;}
+  .numGroup{flex:1;}
+  .numGroup label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .numGroup input{width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--line);font-size:15px;text-align:center;}
+
+  .listItem{display:flex;align-items:center;justify-content:space-between;padding:10px 6px;border-bottom:1px solid var(--line);}
+  .listItem:last-child{border-bottom:none;}
+  .listItem .info b{display:block;font-size:14px;}
+  .listItem .info span{font-size:11.5px;color:var(--muted);}
+  .listItem .btns{display:flex;gap:6px;}
+
+  .miniInput{padding:9px 10px;border-radius:8px;border:1.5px solid var(--line);font-size:14px;width:100%;margin-bottom:8px;}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge-ok{background:var(--ok-bg);color:var(--ok);}
+  .badge-bad{background:var(--bad-bg);color:var(--bad);}
+  .badge-muted{background:#eee;color:var(--muted);}
+
+  .tabsRow{display:flex;gap:6px;margin-bottom:14px;}
+  .tabsRow button{flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:700;color:var(--muted);}
+  .tabsRow button.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
+    padding:10px 18px;border-radius:30px;font-size:13px;z-index:100;opacity:0;transition:.25s;pointer-events:none;
+  }
+  .toast.show{opacity:1;bottom:26px;}
+  .muted{color:var(--muted);}
+  .syncDot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-left:5px;}
+  .syncDot.green{background:var(--ok);}
+  .syncDot.gray{background:#bbb;}
+  .syncDot.orange{background:#e08a1e;}
+  hr.sep{border:none;border-top:1px solid var(--line);margin:14px 0;}
+</style>
+<style id="googleidentityservice_button_styles">.qJTHM{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:Roboto-Regular,arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{overflow-wrap:break-word;word-break:break-word}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf{border:none;margin:0;padding:0}.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u{-webkit-transition:height .2s linear;transition:height .2s linear}.P1ekSe-ZMv3u>div:first-child{background-color:#1a73e8!important;-webkit-transition:width .3s linear;transition:width .3s linear}.P1ekSe-ZMv3u>div:nth-child(2){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.P1ekSe-ZMv3u>div:nth-child(3){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{border-radius:4px;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:Google Sans,arial,sans-serif;font-size:.875rem;height:40px;letter-spacing:.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:.875rem;height:32px;letter-spacing:.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:.6875rem;height:20px;letter-spacing:.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc{border:1px solid #8e918f;background-color:#131314;color:#e3e3e3}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;-webkit-box-align:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;-webkit-flex-direction:row;-webkit-box-orient:horizontal;-webkit-box-direction:normal;flex-direction:row;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;-webkit-box-flex:1;flex-grow:1;font-family:Google Sans,arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;-webkit-box-flex:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:focus,.nsm7Bb-HzV7m-LgbsSe:hover{box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.08)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.12)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:Roboto;font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.i5vt6e-to915-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#c4c7c5;fill:#c4c7c5}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:0;border-bottom-left-radius:0;border-top-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style></head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginScreen">
+  <div class="loginCard">
+    <div class="logo-badge">📋</div>
+    <h1>سیستەمی ئامادەبوونی کارمەندان</h1>
+    <p>وشەی نهێنی خۆت بنووسە بۆ چوونەژوورەوە</p>
+    <div class="field">
+      <label>وشەی نهێنی</label>
+      <input type="password" id="loginPass" placeholder="••••••" autocomplete="off">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">چوونەژوورەوە</button>
+    <div id="loginError"></div>
+    <hr class="sep">
+    <div class="muted" style="font-size:11.5px;">داتاکان لە Supabase ـدا هەڵدەگیرێن (SQLite cache + cloud backup)</div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <header class="topbar">
+    <div class="who">
+      <b id="whoName">-</b>
+      <span id="whoRole">-</span>
+    </div>
+    <div class="actions">
+      <span id="syncStatus" class="muted" style="font-size:11px;display:flex;align-items:center;">هەڵنەگیراوە<i class="syncDot gray"></i></span>
+      <button class="iconbtn" title="هاوکاتکردن لەگەڵ Supabase" onclick="manualSync()">🔄</button>
+      <button class="iconbtn" id="settingsBtn" title="ڕێکخستن" onclick="openSettings()" style="display:none;">⚙️</button>
+      <button class="iconbtn" title="چوونەدەرەوە" onclick="logout()">🚪</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Admin: browse all departments -->
+    <div class="card" id="allDeptsBtnCard" style="display:none;">
+      <button class="btn btn-primary" style="width:100%;" onclick="openAllDepartments()">🏢 هەموو بەشەکان</button>
+    </div>
+
+    <!-- Admin: department picker + manage button -->
+    <div class="card" id="deptPickerCard" style="display:none;">
+      <div class="rowbetween">
+        <div style="flex:1;">
+          <label class="muted" style="font-size:12px;">بەشی دیاریکراو</label>
+          <select id="deptPicker" class="selectBox" style="width:100%;margin-top:4px;" onchange="onDeptChange()"></select>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openManageDepts()">🏭 بەڕێوەبردنی بەشەکان</button>
+      </div>
+    </div>
+
+    <!-- Year + Month -->
+    <div class="card">
+      <div class="rowbetween" style="margin-bottom:10px;">
+        <div class="sectionTitle" style="margin:0;">📅 ساڵنامەی ئامادەبوون</div>
+        <div style="display:flex;gap:8px;">
+          <select id="monthPicker" class="selectBox" onchange="onMonthChange()"></select>
+          <select id="yearPicker" class="selectBox" onchange="renderCalendar()"></select>
+        </div>
+      </div>
+      <div class="calWrap">
+        <div class="weekHeader" id="weekHeader"></div>
+        <div class="calGrid" id="calGrid"></div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:12px;font-size:11.5px;" class="muted">
+        <span><span class="p">■</span> ئامادەبوو</span>
+        <span><span class="a">■</span> ئامادەنەبوو</span>
+      </div>
+    </div>
+
+    <!-- Shifts summary card -->
+    <div class="card" id="shiftsCard">
+      <div class="sectionTitle">🕒 شەفتەکانی ئەم بەشە</div>
+      <div id="shiftsSummary"></div>
+    </div>
+
+    <!-- Employees card -->
+    <div class="card" id="employeesCard">
+      <div class="rowbetween" style="margin-bottom:10px;">
+        <div class="sectionTitle" style="margin:0;">👥 کارمەندانی ئەم بەشە</div>
+        <button class="btn btn-outline btn-sm" onclick="openAddEmployeeModal()">➕ زیادکردن</button>
+      </div>
+      <div id="employeesList"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===== Day Modal ===== -->
+<div class="overlay" id="dayModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3 id="dayModalTitle">ڕۆژی --</h3>
+      <button class="closeX" onclick="closeModal(&#39;dayModal&#39;)">✕</button>
+    </div>
+    <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
+    <div id="dayEmployeesList"></div>
+    <button class="btn btn-primary" style="margin-top:6px;" onclick="saveDayData()">💾 هەڵگرتن</button>
+  </div>
+</div>
+
+<!-- ===== All Departments Modal (admin) ===== -->
+<div class="overlay" id="allDeptsModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3>هەموو بەشەکان</h3>
+      <button class="closeX" onclick="closeModal(&#39;allDeptsModal&#39;)">✕</button>
+    </div>
+    <div id="allDeptsList"></div>
+  </div>
+</div>
+
+<!-- ===== Department Detail Modal (admin): employees roster ===== -->
+<div class="overlay" id="deptDetailModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3 id="deptDetailTitle">بەش</h3>
+      <button class="closeX" onclick="closeModal(&#39;deptDetailModal&#39;)">✕</button>
+    </div>
+    <div class="rowbetween" style="margin-bottom:10px;">
+      <button class="btn btn-outline btn-sm" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
+      <button class="btn btn-outline btn-sm" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
+    </div>
+    <input class="miniInput" id="deptDetailSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderDeptDetailEmployees()">
+    <div id="deptDetailEmployeesList"></div>
+  </div>
+</div>
+
+<!-- ===== Bulk Add Employees via JSON Modal ===== -->
+<div class="overlay" id="bulkAddEmployeesModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3>زیادکردنی کۆمەڵە کارمەند بە JSON</h3>
+      <button class="closeX" onclick="closeModal(&#39;bulkAddEmployeesModal&#39;)">✕</button>
+    </div>
+    <div class="muted" style="font-size:12px;margin-bottom:8px;">
+      لیستێک (Array) لە JSON بنووسە، هەر کارمەندێک بە خانەکانی: name (ناو، پێویستە)، code (ئایدی)، shift (ڕۆژ یان شەو)، hours (کاتی کارکردن).
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:8px;" onclick="fillBulkExample()">📄 پڕکردنەوە بە نموونە</button>
+    <textarea id="bulkJsonInput" class="miniInput" style="height:180px;font-family:monospace;font-size:12.5px;direction:ltr;text-align:left;" placeholder="[
+  {&quot;name&quot;:&quot;ئاراس محەمەد&quot;,&quot;code&quot;:&quot;1001&quot;,&quot;shift&quot;:&quot;ڕۆژ&quot;,&quot;hours&quot;:&quot;7-19&quot;},
+  {&quot;name&quot;:&quot;سارا ئەحمەد&quot;,&quot;code&quot;:&quot;1002&quot;,&quot;shift&quot;:&quot;شەو&quot;,&quot;hours&quot;:&quot;19-7&quot;}
+]"></textarea>
+    <button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="processBulkAddEmployees()">💾 زیادکردنی هەموو</button>
+  </div>
+</div>
+
+<!-- ===== Manage Departments Modal (admin) ===== -->
+<div class="overlay" id="deptsModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3>بەڕێوەبردنی بەشەکان</h3>
+      <button class="closeX" onclick="closeModal(&#39;deptsModal&#39;)">✕</button>
+    </div>
+    <input class="miniInput" id="newDeptName" placeholder="ناوی بەشی نوێ">
+    <input class="miniInput" id="newDeptPass" placeholder="وشەی نهێنی سەرپەرشتیار">
+    <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="addDepartment()">➕ زیادکردنی بەش</button>
+    <hr class="sep">
+    <div id="deptsList"></div>
+  </div>
+</div>
+
+<!-- ===== Edit Department / Shifts Modal ===== -->
+<div class="overlay" id="deptEditModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3 id="deptEditTitle">دەستکاریکردنی بەش</h3>
+      <button class="closeX" onclick="closeModal(&#39;deptEditModal&#39;)">✕</button>
+    </div>
+    <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
+    <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی">
+    <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی</button>
+    <button class="btn btn-danger btn-sm" style="width:100%;margin-bottom:14px;" onclick="deleteDept()">🗑️ سڕینەوەی ئەم بەشە</button>
+    <hr class="sep">
+    <div class="sectionTitle">شەفتەکان</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-outline btn-sm" style="flex:1;" onclick="fillShiftPreset(&#39;ڕۆژ&#39;,&#39;7-19&#39;)">🌞 شەفتی ڕۆژ (7-19)</button>
+      <button class="btn btn-outline btn-sm" style="flex:1;" onclick="fillShiftPreset(&#39;شەو&#39;,&#39;19-7&#39;)">🌙 شەفتی شەو (19-7)</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:6px;">
+      <input class="miniInput" id="newShiftName" placeholder="ناوی شەفت" style="margin-bottom:0;">
+      <input class="miniInput" id="newShiftCode" placeholder="ئایدی" style="margin-bottom:0;max-width:80px;">
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <input class="miniInput" id="newShiftHours" placeholder="کاتی کارکردن، بۆ نموونە 7-19" style="margin-bottom:0;">
+      <button class="btn btn-outline btn-sm" onclick="addShift()">➕ زیادکردن</button>
+    </div>
+    <div id="shiftsEditList"></div>
+  </div>
+</div>
+
+<!-- ===== Add Employee Modal ===== -->
+<div class="overlay" id="addEmployeeModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3>زیادکردنی کارمەند</h3>
+      <button class="closeX" onclick="closeModal(&#39;addEmployeeModal&#39;)">✕</button>
+    </div>
+    <input class="miniInput" id="newEmpName" placeholder="ناوی کارمەند">
+    <input class="miniInput" id="newEmpCode" placeholder="ئایدی/ژمارەی کارمەند">
+    <label class="muted" style="font-size:12px;">شەفت</label>
+    <select id="newEmpShiftType" class="selectBox" style="width:100%;margin:6px 0 10px;">
+      <option value="ڕۆژ">🌞 ڕۆژ</option>
+      <option value="شەو">🌙 شەو</option>
+    </select>
+    <label class="muted" style="font-size:12px;">کاتی کارکردن (بەپێی عەقدی کارمەند)</label>
+    <input class="miniInput" id="newEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17" style="margin-top:6px;">
+    <button class="btn btn-primary" style="width:100%;" onclick="addEmployeeConfirm()">💾 زیادکردن</button>
+  </div>
+</div>
+
+<!-- ===== Edit / Transfer Employee Modal ===== -->
+<div class="overlay" id="editEmployeeModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3>دەستکاریکردنی کارمەند</h3>
+      <button class="closeX" onclick="closeModal(&#39;editEmployeeModal&#39;)">✕</button>
+    </div>
+    <input class="miniInput" id="editEmpName" placeholder="ناوی کارمەند">
+    <input class="miniInput" id="editEmpCode" placeholder="ئایدی/ژمارەی کارمەند">
+    <label class="muted" style="font-size:12px;">شەفت</label>
+    <select id="editEmpShiftType" class="selectBox" style="width:100%;margin:6px 0 10px;">
+      <option value="ڕۆژ">🌞 ڕۆژ</option>
+      <option value="شەو">🌙 شەو</option>
+    </select>
+    <label class="muted" style="font-size:12px;">کاتی کارکردن (بەپێی عەقدی کارمەند)</label>
+    <input class="miniInput" id="editEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17" style="margin-top:6px;">
+    <div id="employeeTransferWrap" style="display:none;">
+      <label class="muted" style="font-size:12px;">گواستنەوە بۆ بەشێکی تر</label>
+      <select id="editEmpDept" class="selectBox" style="width:100%;margin:6px 0 10px;"></select>
+    </div>
+    <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="saveEmployeeEdit()">💾 پاشەکەوتکردن</button>
+    <button class="btn btn-danger" style="width:100%;" onclick="deleteEmployee()">🗑️ سڕینەوەی کارمەند</button>
+  </div>
+</div>
+
+<!-- ===== Settings Modal (admin) ===== -->
+<div class="overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3>ڕێکخستنی سیستەم</h3>
+      <button class="closeX" onclick="closeModal(&#39;settingsModal&#39;)">✕</button>
+    </div>
+    <div class="tabsRow">
+      <button class="active" onclick="setSettingsTab(&#39;cloud&#39;)" id="tabBtn_cloud">Supabase</button>
+      <button onclick="setSettingsTab(&#39;admin&#39;)" id="tabBtn_admin">وشەی نهێنی ئەدمین</button>
+    </div>
+
+    <div id="settingsTab_cloud">
+      <label class="muted" style="font-size:12px;">Supabase Project URL</label>
+      <input class="miniInput" id="supabaseUrl" placeholder="https://YOUR-PROJECT.supabase.co" dir="ltr">
+      <label class="muted" style="font-size:12px;">Supabase Publishable / Anon Key</label>
+      <input class="miniInput" id="supabaseKey" placeholder="sb_publishable_... or eyJ..." dir="ltr">
+      <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="saveSupabaseConfig()">💾 هەڵگرتنی زانیاری Supabase</button>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:8px;" onclick="connectSupabase()">🔗 پەیوەندیکردن بە Supabase</button>
+      <div id="cloudStatus" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
+      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="manualSync()">🔄 هاوکاتکردنی ئێستا</button>
+    </div>
+
+    <div id="settingsTab_admin" style="display:none;">
+      <label class="muted" style="font-size:12px;">وشەی نهێنی نوێی ئەدمین</label>
+      <input class="miniInput" id="newAdminPass" type="password" placeholder="وشەی نهێنی نوێ">
+      <button class="btn btn-outline" style="width:100%;" onclick="changeAdminPass()">💾 گۆڕین</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ======================================================================
+   داتا و دۆخی گشتی
+   ====================================================================== */
+let SQL = null;
+let db = null;
+let currentUser = null; // {role:'admin'|'dept', deptId, deptName}
+let currentDeptId = null;
+let selYear = new Date().getFullYear();
+let selMonth = new Date().getMonth();
+let selDay = null;
+let editingDeptId = null;
+let supabaseClient = null;
+let supabaseUrl = localStorage.getItem('att_supabase_url') || '';
+let supabaseKey = localStorage.getItem('att_supabase_key') || '';
+const SUPABASE_TABLE = 'attendance_app_state';
+const SUPABASE_APP_ID = 'attendance_9tVRkHu0E4aLT55kRLuUyEHTSFEowsHI';
+
+const KURDISH_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* ======================================================================
+   دەستپێکردنی sql.js و بارکردنی داتابەیس
+   ====================================================================== */
+async function initSql(){
+  SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` });
+}
+
+function createFreshDb(){
+  db = new SQL.Database();
+  db.run(`
+    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT);
+    CREATE TABLE shifts (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, code TEXT, hours TEXT);
+    CREATE TABLE employees (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, emp_code TEXT, shift_type TEXT, hours TEXT);
+    CREATE TABLE attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER, month INTEGER, day INTEGER,
+      dept_id INTEGER, shift_id INTEGER,
+      present INTEGER DEFAULT 0, absent INTEGER DEFAULT 0,
+      UNIQUE(year,month,day,shift_id)
+    );
+    CREATE TABLE employee_attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER, month INTEGER, day INTEGER,
+      employee_id INTEGER, status TEXT,
+      UNIQUE(year,month,day,employee_id)
+    );
+  `);
+  db.run(`INSERT INTO settings (key,value) VALUES ('admin_password','1234')`);
+  // ناوونیشانی نموونە بۆ دەستپێک
+  db.run(`INSERT INTO departments (name,password) VALUES ('بەشی نموونە','1111')`);
+  db.run(`INSERT INTO shifts (dept_id,name,code,hours) VALUES (1,'شەفتی ڕۆژ','S1','7-19')`);
+  db.run(`INSERT INTO shifts (dept_id,name,code,hours) VALUES (1,'شەفتی شەو','S2','19-7')`);
+  persistLocal();
+}
+
+// بۆ داتابەیسی کۆن کە پێشتر دروستکراوە بەبێ خشتەی کارمەندان یان کۆڵەمی کاتی کارکردن
+function ensureSchema(){
+  db.run(`CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, emp_code TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS employee_attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER, month INTEGER, day INTEGER,
+    employee_id INTEGER, status TEXT,
+    UNIQUE(year,month,day,employee_id)
+  )`);
+  const shiftCols = db.exec(`PRAGMA table_info(shifts)`);
+  const hasHours = shiftCols.length && shiftCols[0].values.some(row => row[1] === 'hours');
+  if(!hasHours){
+    db.run(`ALTER TABLE shifts ADD COLUMN hours TEXT`);
+  }
+  const empCols = db.exec(`PRAGMA table_info(employees)`);
+  const empColNames = empCols.length ? empCols[0].values.map(row => row[1]) : [];
+  if(!empColNames.includes('shift_type')){
+    db.run(`ALTER TABLE employees ADD COLUMN shift_type TEXT`);
+  }
+  if(!empColNames.includes('hours')){
+    db.run(`ALTER TABLE employees ADD COLUMN hours TEXT`);
+  }
+}
+
+function loadDbFromBytes(bytes){
+  db = new SQL.Database(bytes);
+  ensureSchema();
+}
+
+function exportDbBytes(){
+  return db.export();
+}
+
+function persistLocal(){
+  try{
+    const bytes = exportDbBytes();
+    let binary='';
+    for(let i=0;i<bytes.length;i++) binary+=String.fromCharCode(bytes[i]);
+    localStorage.setItem('att_db_cache', btoa(binary));
+  }catch(e){ console.warn('persistLocal failed', e); }
+}
+
+function loadLocalCache(){
+  const cached = localStorage.getItem('att_db_cache');
+  if(!cached) return false;
+  try{
+    const binary = atob(cached);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+    loadDbFromBytes(bytes);
+    return true;
+  }catch(e){ console.warn('loadLocalCache failed', e); return false; }
+}
+
+function getSetting(key){
+  const res = db.exec(`SELECT value FROM settings WHERE key='${key}'`);
+  if(res.length && res[0].values.length) return res[0].values[0][0];
+  return null;
+}
+function setSetting(key,val){
+  db.run(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,[key,val]);
+  persistLocal();
+}
+
+/* ======================================================================
+   چوونەژوورەوە
+   ====================================================================== */
+async function doLogin(){
+  const pass = document.getElementById('loginPass').value.trim();
+  const errEl = document.getElementById('loginError');
+  errEl.textContent='';
+  if(!pass){ errEl.textContent='تکایە وشەی نهێنی بنووسە'; return; }
+
+  const adminPass = getSetting('admin_password');
+  if(pass === adminPass){
+    currentUser = {role:'admin'};
+    finishLogin();
+    return;
+  }
+  const res = db.exec(`SELECT id,name FROM departments WHERE password='${pass.replace(/'/g,"''")}'`);
+  if(res.length && res[0].values.length){
+    const [id,name] = res[0].values[0];
+    currentUser = {role:'dept', deptId:id, deptName:name};
+    finishLogin();
+    return;
+  }
+  errEl.textContent='وشەی نهێنی هەڵەیە';
+}
+
+function finishLogin(){
+  localStorage.setItem('att_last_role', JSON.stringify(currentUser));
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('whoName').textContent = currentUser.role==='admin' ? 'بەڕێوەبەری سیستەم' : currentUser.deptName;
+  document.getElementById('whoRole').textContent = currentUser.role==='admin' ? 'دەسەڵاتی تەواو' : 'سەرپەرشتیار بەش';
+  document.getElementById('settingsBtn').style.display = currentUser.role==='admin' ? 'flex':'none';
+  document.getElementById('deptPickerCard').style.display = currentUser.role==='admin' ? 'block':'none';
+  document.getElementById('allDeptsBtnCard').style.display = currentUser.role==='admin' ? 'block':'none';
+
+  if(currentUser.role==='admin'){
+    fillDeptPicker();
+  } else {
+    currentDeptId = currentUser.deptId;
+  }
+  buildYearPicker();
+  buildMonthTabs();
+  renderCalendar();
+  renderShiftsSummary();
+  renderEmployeesList();
+  refreshSyncStatusUI();
+}
+
+function logout(){
+  currentUser=null;
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginPass').value='';
+}
+
+/* ======================================================================
+   دروستکردنی دیمەنی سەرەکی: ساڵ / مانگ / بەش
+   ====================================================================== */
+function fillDeptPicker(){
+  const sel = document.getElementById('deptPicker');
+  sel.innerHTML='';
+  const res = db.exec(`SELECT id,name FROM departments ORDER BY name`);
+  if(res.length){
+    res[0].values.forEach(([id,name])=>{
+      const opt=document.createElement('option');
+      opt.value=id; opt.textContent=name;
+      sel.appendChild(opt);
+    });
+  }
+  if(res.length && res[0].values.length){
+    currentDeptId = res[0].values[0][0];
+    sel.value = currentDeptId;
+  } else {
+    currentDeptId = null;
+  }
+}
+function onDeptChange(){
+  currentDeptId = parseInt(document.getElementById('deptPicker').value);
+  renderCalendar();
+  renderShiftsSummary();
+  renderEmployeesList();
+}
+
+function buildYearPicker(){
+  const sel = document.getElementById('yearPicker');
+  sel.innerHTML='';
+  const nowY = new Date().getFullYear();
+  for(let y=nowY-2; y<=nowY+3; y++){
+    const opt=document.createElement('option');
+    opt.value=y; opt.textContent=y;
+    if(y===selYear) opt.selected=true;
+    sel.appendChild(opt);
+  }
+}
+
+function buildMonthTabs(){
+  const sel = document.getElementById('monthPicker');
+  sel.innerHTML='';
+  KURDISH_MONTHS.forEach((name,idx)=>{
+    const opt=document.createElement('option');
+    opt.value=idx; opt.textContent=name;
+    if(idx===selMonth) opt.selected=true;
+    sel.appendChild(opt);
+  });
+  const wh = document.getElementById('weekHeader');
+  wh.innerHTML='';
+  WEEKDAYS.forEach(d=>{
+    const div=document.createElement('div');
+    div.textContent=d.slice(0,3);
+    wh.appendChild(div);
+  });
+}
+function onMonthChange(){
+  selMonth = parseInt(document.getElementById('monthPicker').value);
+  renderCalendar();
+}
+
+function renderCalendar(){
+  selYear = parseInt(document.getElementById('yearPicker').value) || selYear;
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML='';
+  if(!currentDeptId){
+    grid.innerHTML = '<div class="muted" style="grid-column:1/-1;text-align:center;padding:20px;">هیچ بەشێک زیاد نەکراوە</div>';
+    return;
+  }
+  const firstDay = new Date(selYear, selMonth, 1).getDay(); // 0=Sunday
+  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+
+  // بۆشایی پێش یەکەم ڕۆژ
+  for(let i=0;i<firstDay;i++){
+    const d=document.createElement('div');
+    d.className='dayCell empty';
+    grid.appendChild(d);
+  }
+
+  const stmt = db.prepare(`
+    SELECT
+      SUM(CASE WHEN ea.status='present' THEN 1 ELSE 0 END) as p,
+      SUM(CASE WHEN ea.status='absent' THEN 1 ELSE 0 END) as a
+    FROM employees e
+    LEFT JOIN employee_attendance ea
+      ON ea.employee_id = e.id AND ea.year=? AND ea.month=? AND ea.day=?
+    WHERE e.dept_id=?
+  `);
+
+  for(let day=1; day<=daysInMonth; day++){
+    const dow = new Date(selYear, selMonth, day).getDay();
+    stmt.bind([selYear, selMonth+1, day, currentDeptId]);
+    let p=0,a=0,hasData=false;
+    if(stmt.step()){
+      const row = stmt.getAsObject();
+      p = row.p||0; a = row.a||0;
+      hasData = (p>0||a>0);
+    }
+    stmt.reset();
+
+    const cell=document.createElement('div');
+    cell.className='dayCell'+(dow===5?' weekend':'')+(hasData?' filled':'');
+    cell.innerHTML = `<div class="num">${day}</div>` + (hasData?`<div class="stats"><span class="p">✓${p}</span><span class="a">✗${a}</span></div>`:'');
+    cell.onclick = ()=>openDayModal(day);
+    grid.appendChild(cell);
+  }
+  stmt.free();
+}
+
+function renderShiftsSummary(){
+  const wrap = document.getElementById('shiftsSummary');
+  wrap.innerHTML='';
+  if(!currentDeptId){ wrap.innerHTML='<div class="muted">-</div>'; return; }
+  const res = db.exec(`SELECT id,name,code,hours FROM shifts WHERE dept_id=${currentDeptId} ORDER BY id`);
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML='<div class="muted">هیچ شەفتێک زیاد نەکراوە بۆ ئەم بەشە</div>';
+    return;
+  }
+  res[0].values.forEach(([id,name,code,hours])=>{
+    const div=document.createElement('div');
+    div.className='listItem';
+    div.innerHTML = `<div class="info"><b>${escapeHtml(name)}</b><span>ئایدی: ${escapeHtml(code||'-')}${hours?' • کات: '+escapeHtml(hours):''}</span></div>`;
+    wrap.appendChild(div);
+  });
+}
+
+/* ======================================================================
+   بەڕێوەبردنی کارمەندان (زیادکردن، دەستکاری، گواستنەوە بۆ بەشی تر)
+   ====================================================================== */
+function renderEmployeesList(){
+  const wrap = document.getElementById('employeesList');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  if(!currentDeptId){ wrap.innerHTML='<div class="muted">-</div>'; return; }
+  const res = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${currentDeptId} ORDER BY name`);
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML='<div class="muted">هیچ کارمەندێک زیاد نەکراوە بۆ ئەم بەشە</div>';
+    return;
+  }
+  res[0].values.forEach(([id,name,code,shiftType,hours])=>{
+    const div=document.createElement('div');
+    div.className='listItem';
+    const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
+    const extra = [code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    div.innerHTML=`
+      <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
+      <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditEmployee(${id})">✏️</button></div>`;
+    wrap.appendChild(div);
+  });
+}
+
+let addEmployeeTargetDeptId = null;
+function openAddEmployeeModal(){
+  if(!currentDeptId){ showToast('سەرەتا بەشێک دیاری بکە'); return; }
+  addEmployeeTargetDeptId = currentDeptId;
+  document.getElementById('newEmpName').value='';
+  document.getElementById('newEmpCode').value='';
+  document.getElementById('newEmpShiftType').value='ڕۆژ';
+  document.getElementById('newEmpHours').value='';
+  openModal('addEmployeeModal');
+}
+function addEmployeeConfirm(){
+  const name = document.getElementById('newEmpName').value.trim();
+  const code = document.getElementById('newEmpCode').value.trim();
+  const shiftType = document.getElementById('newEmpShiftType').value;
+  const hours = document.getElementById('newEmpHours').value.trim();
+  const targetDeptId = addEmployeeTargetDeptId || currentDeptId;
+  if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
+  db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours) VALUES (?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours]);
+  persistLocal();
+  closeModal('addEmployeeModal');
+  refreshAfterEmployeeChange();
+  debouncedSync();
+  showToast('کارمەند زیاد کرا ✓');
+}
+
+let editingEmpId=null;
+function openEditEmployee(id){
+  editingEmpId = id;
+  const res = db.exec(`SELECT name,emp_code,dept_id,shift_type,hours FROM employees WHERE id=${id}`);
+  const [name,code,deptId,shiftType,hours] = res[0].values[0];
+  document.getElementById('editEmpName').value = name;
+  document.getElementById('editEmpCode').value = code||'';
+  document.getElementById('editEmpShiftType').value = shiftType||'ڕۆژ';
+  document.getElementById('editEmpHours').value = hours||'';
+
+  const transferWrap = document.getElementById('employeeTransferWrap');
+  if(currentUser.role==='admin'){
+    transferWrap.style.display='block';
+    const sel = document.getElementById('editEmpDept');
+    sel.innerHTML='';
+    const depts = db.exec(`SELECT id,name FROM departments ORDER BY name`);
+    if(depts.length){
+      depts[0].values.forEach(([did,dname])=>{
+        const opt=document.createElement('option');
+        opt.value=did; opt.textContent=dname;
+        if(did===deptId) opt.selected=true;
+        sel.appendChild(opt);
+      });
+    }
+  } else {
+    transferWrap.style.display='none';
+  }
+  openModal('editEmployeeModal');
+}
+function saveEmployeeEdit(){
+  const name = document.getElementById('editEmpName').value.trim();
+  const code = document.getElementById('editEmpCode').value.trim();
+  const shiftType = document.getElementById('editEmpShiftType').value;
+  const hours = document.getElementById('editEmpHours').value.trim();
+  if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
+  let newDeptId = currentDeptId;
+  if(currentUser.role==='admin'){
+    newDeptId = parseInt(document.getElementById('editEmpDept').value);
+  }
+  db.run(`UPDATE employees SET name=?, emp_code=?, dept_id=?, shift_type=?, hours=? WHERE id=?`,[name,code,newDeptId,shiftType,hours,editingEmpId]);
+  persistLocal();
+  closeModal('editEmployeeModal');
+  refreshAfterEmployeeChange();
+  debouncedSync();
+  showToast(newDeptId===currentDeptId ? 'گۆڕانکاری هەڵگیرا ✓' : 'کارمەند گوازرایەوە بۆ بەشی نوێ ✓');
+}
+function deleteEmployee(){
+  if(!confirm('دڵنیایت لە سڕینەوەی ئەم کارمەندە؟')) return;
+  db.run(`DELETE FROM employee_attendance WHERE employee_id=${editingEmpId}`);
+  db.run(`DELETE FROM employees WHERE id=${editingEmpId}`);
+  persistLocal();
+  closeModal('editEmployeeModal');
+  refreshAfterEmployeeChange();
+  debouncedSync();
+  showToast('کارمەند سڕایەوە');
+}
+
+// دوای هەر گۆڕانکاریەک لە کارمەندێک، هەردوو دیمەنی سەرەکی و "هەموو بەشەکان" نوێ بکەرەوە
+function refreshAfterEmployeeChange(){
+  renderEmployeesList();
+  renderCalendar();
+  if(document.getElementById('deptDetailModal').classList.contains('show') && deptDetailId){
+    renderDeptDetailEmployees();
+  }
+}
+
+/* ======================================================================
+   هەموو بەشەکان: گەڕان لەنێو بەشەکان و بینینی کارمەندانی هەریەکێک
+   ====================================================================== */
+function openAllDepartments(){
+  const wrap = document.getElementById('allDeptsList');
+  wrap.innerHTML='';
+  const res = db.exec(`SELECT id,name FROM departments ORDER BY name`);
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML = '<div class="muted">هیچ بەشێک زیاد نەکراوە</div>';
+  } else {
+    res[0].values.forEach(([id,name])=>{
+      const empCountRes = db.exec(`SELECT COUNT(*) FROM employees WHERE dept_id=${id}`);
+      const empCount = empCountRes.length ? empCountRes[0].values[0][0] : 0;
+      const div=document.createElement('div');
+      div.className='listItem';
+      div.style.cursor='pointer';
+      div.innerHTML=`
+        <div class="info"><b>${escapeHtml(name)}</b><span>${empCount} کارمەند</span></div>
+        <div class="btns"><span class="muted">‹</span></div>`;
+      div.onclick = ()=>openDeptDetail(id);
+      wrap.appendChild(div);
+    });
+  }
+  openModal('allDeptsModal');
+}
+
+let deptDetailId = null;
+function openDeptDetail(id){
+  deptDetailId = id;
+  const res = db.exec(`SELECT name FROM departments WHERE id=${id}`);
+  const deptName = res.length && res[0].values.length ? res[0].values[0][0] : '';
+  document.getElementById('deptDetailTitle').textContent = deptName;
+  document.getElementById('deptDetailSearch').value = '';
+  renderDeptDetailEmployees();
+  closeModal('allDeptsModal');
+  openModal('deptDetailModal');
+}
+function renderDeptDetailEmployees(){
+  const wrap = document.getElementById('deptDetailEmployeesList');
+  wrap.innerHTML='';
+  const term = (document.getElementById('deptDetailSearch').value || '').trim();
+  let res;
+  if(term){
+    res = db.exec(
+      `SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=? AND (name LIKE ? OR emp_code LIKE ?) ORDER BY name`,
+      [deptDetailId, `%${term}%`, `%${term}%`]
+    );
+  } else {
+    res = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${deptDetailId} ORDER BY name`);
+  }
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML = `<div class="muted">${term ? 'هیچ کارمەندێک بەم گەڕانە نەدۆزرایەوە' : 'هیچ کارمەندێک زیاد نەکراوە بۆ ئەم بەشە'}</div>`;
+    return;
+  }
+  res[0].values.forEach(([id,name,code,shiftType,hours])=>{
+    const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
+    const extra = [code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const div=document.createElement('div');
+    div.className='listItem';
+    div.innerHTML=`
+      <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
+      <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditEmployee(${id})">✏️</button></div>`;
+    wrap.appendChild(div);
+  });
+}
+function openAddEmployeeForDetail(){
+  if(!deptDetailId) return;
+  addEmployeeTargetDeptId = deptDetailId;
+  document.getElementById('newEmpName').value='';
+  document.getElementById('newEmpCode').value='';
+  document.getElementById('newEmpShiftType').value='ڕۆژ';
+  document.getElementById('newEmpHours').value='';
+  openModal('addEmployeeModal');
+}
+
+/* ======================================================================
+   زیادکردنی کۆمەڵە کارمەند بەیەکەوە لە ڕێگەی JSON
+   ====================================================================== */
+function openBulkAddModal(){
+  if(!deptDetailId) return;
+  document.getElementById('bulkJsonInput').value='';
+  openModal('bulkAddEmployeesModal');
+}
+function fillBulkExample(){
+  document.getElementById('bulkJsonInput').value = JSON.stringify([
+    {name:'ئاراس محەمەد', code:'1001', shift:'ڕۆژ', hours:'07:00-19:00'},
+    {name:'سارا ئەحمەد', code:'1002', shift:'شەو', hours:'19:00-07:00'}
+  ], null, 2);
+}
+function processBulkAddEmployees(){
+  const raw = document.getElementById('bulkJsonInput').value.trim();
+  if(!raw){ showToast('JSON بنووسە'); return; }
+  let data;
+  try{
+    data = JSON.parse(raw);
+  }catch(e){
+    showToast('❌ JSON دروست نییە');
+    return;
+  }
+  if(!Array.isArray(data)){
+    showToast('❌ پێویستە بە شێوەی لیست [ ] بێت');
+    return;
+  }
+  let added=0, skipped=0;
+  data.forEach(item=>{
+    if(!item || typeof item!=='object') { skipped++; return; }
+    const name = (item.name || item['ناو'] || '').toString().trim();
+    if(!name){ skipped++; return; }
+    const code = (item.code || item.id || item['ئایدی'] || '').toString().trim();
+    let shiftType = (item.shift || item.shift_type || item['شەفت'] || 'ڕۆژ').toString().trim();
+    if(shiftType!=='ڕۆژ' && shiftType!=='شەو') shiftType='ڕۆژ';
+    const hours = (item.hours || item['کات'] || '').toString().trim();
+    db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours) VALUES (?,?,?,?,?)`,[deptDetailId,name,code,shiftType,hours]);
+    added++;
+  });
+  persistLocal();
+  closeModal('bulkAddEmployeesModal');
+  refreshAfterEmployeeChange();
+  debouncedSync();
+  showToast(`✓ ${added} کارمەند زیاد کرا${skipped?` (${skipped} پەڕێنراوە)`:''}`);
+}
+
+/* ======================================================================
+   مۆداڵی ڕۆژ: تۆمارکردنی ئامادەبوو/نەبوو بۆ هەر شەفت
+   ====================================================================== */
+let dayAttendanceState = {};
+
+function openDayModal(day){
+  selDay = day;
+  document.getElementById('dayModalTitle').textContent =
+    `${day} ${KURDISH_MONTHS[selMonth]} ${selYear}`;
+  const listWrap = document.getElementById('dayEmployeesList');
+  listWrap.innerHTML='';
+  dayAttendanceState = {};
+
+  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${currentDeptId} ORDER BY name`);
+  if(!empRes.length || !empRes[0].values.length){
+    listWrap.innerHTML = '<div class="muted">پێشتر کارمەندێک بۆ ئەم بەشە زیاد بکە.</div>';
+    document.getElementById('dayLiveSummary').innerHTML='';
+    openModal('dayModal');
+    return;
+  }
+
+  const statusRes = db.exec(`SELECT employee_id,status FROM employee_attendance WHERE year=${selYear} AND month=${selMonth+1} AND day=${day}`);
+  const statusMap = {};
+  if(statusRes.length){
+    statusRes[0].values.forEach(([eid,status])=>{ statusMap[eid]=status; });
+  }
+
+  empRes[0].values.forEach(([eid,name,code,shiftType,hours])=>{
+    dayAttendanceState[eid] = statusMap[eid] || null;
+    const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
+    const extra = [code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?hours:null].filter(Boolean).join(' • ');
+    const row=document.createElement('div');
+    row.className='empDayRow';
+    row.id = `empDayRow_${eid}`;
+    row.innerHTML = `
+      <div class="empInfo"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
+      <div class="empToggleBtns">
+        <button type="button" class="empToggleBtn" onclick="setEmpDayStatus(${eid},'present')">✅ ئامادە</button>
+        <button type="button" class="empToggleBtn" onclick="setEmpDayStatus(${eid},'absent')">❌ نەهاتوو</button>
+      </div>`;
+    listWrap.appendChild(row);
+    applyEmpRowStyle(eid);
+  });
+  updateDayLiveSummary();
+  openModal('dayModal');
+}
+
+function setEmpDayStatus(eid, status){
+  // کلیک دووبارە لەسەر دوگمەی هەڵبژێردراو دەیبات، وەک 'نەزانراو'
+  dayAttendanceState[eid] = (dayAttendanceState[eid]===status) ? null : status;
+  applyEmpRowStyle(eid);
+  updateDayLiveSummary();
+}
+function applyEmpRowStyle(eid){
+  const row = document.getElementById(`empDayRow_${eid}`);
+  if(!row) return;
+  const btns = row.querySelectorAll('.empToggleBtn');
+  btns[0].classList.toggle('on-present', dayAttendanceState[eid]==='present');
+  btns[1].classList.toggle('on-absent', dayAttendanceState[eid]==='absent');
+}
+function updateDayLiveSummary(){
+  const vals = Object.values(dayAttendanceState);
+  const p = vals.filter(v=>v==='present').length;
+  const a = vals.filter(v=>v==='absent').length;
+  const total = vals.length;
+  document.getElementById('dayLiveSummary').innerHTML =
+    `<span class="muted">کۆی کارمەندان: ${total}</span>
+     <span><span class="p" style="font-weight:800;">✓ ${p}</span> &nbsp; <span class="a" style="font-weight:800;">✗ ${a}</span></span>`;
+}
+
+function saveDayData(){
+  Object.keys(dayAttendanceState).forEach(eid=>{
+    const status = dayAttendanceState[eid];
+    if(status===null){
+      // هیچ دیاری نەکراوە، ئەگەر پێشتر تۆمارێک هەبوو بیسڕەوە
+      db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id=?`,
+        [selYear, selMonth+1, selDay, eid]);
+      return;
+    }
+    db.run(`
+      INSERT INTO employee_attendance (year,month,day,employee_id,status)
+      VALUES (?,?,?,?,?)
+      ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status
+    `,[selYear, selMonth+1, selDay, eid, status]);
+  });
+  persistLocal();
+  closeModal('dayModal');
+  renderCalendar();
+  showToast('پاشەکەوت کرا ✓');
+  debouncedSync();
+}
+
+/* ======================================================================
+   بەڕێوەبردنی بەشەکان (تەنها ئەدمین)
+   ====================================================================== */
+function openManageDepts(){
+  renderDeptsList();
+  openModal('deptsModal');
+}
+function renderDeptsList(){
+  const wrap = document.getElementById('deptsList');
+  wrap.innerHTML='';
+  const res = db.exec(`SELECT id,name,password FROM departments ORDER BY name`);
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML='<div class="muted">هیچ بەشێک نییە</div>';
+    return;
+  }
+  res[0].values.forEach(([id,name,pass])=>{
+    const div=document.createElement('div');
+    div.className='listItem';
+    div.innerHTML=`
+      <div class="info"><b>${escapeHtml(name)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}</span></div>
+      <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditDept(${id})">✏️</button></div>`;
+    wrap.appendChild(div);
+  });
+}
+function addDepartment(){
+  const name = document.getElementById('newDeptName').value.trim();
+  const pass = document.getElementById('newDeptPass').value.trim();
+  if(!name||!pass){ showToast('ناو و وشەی نهێنی پێویستە'); return; }
+  db.run(`INSERT INTO departments (name,password) VALUES (?,?)`,[name,pass]);
+  persistLocal();
+  document.getElementById('newDeptName').value='';
+  document.getElementById('newDeptPass').value='';
+  renderDeptsList();
+  fillDeptPicker();
+  renderCalendar();
+  debouncedSync();
+  showToast('بەش زیاد کرا ✓');
+}
+function openEditDept(id){
+  editingDeptId = id;
+  const res = db.exec(`SELECT name,password FROM departments WHERE id=${id}`);
+  const [name,pass] = res[0].values[0];
+  document.getElementById('deptEditTitle').textContent = 'دەستکاریکردنی: '+name;
+  document.getElementById('editDeptName').value = name;
+  document.getElementById('editDeptPass').value = pass;
+  renderShiftsEditList();
+  closeModal('deptsModal');
+  openModal('deptEditModal');
+}
+function saveDeptEdit(){
+  const name = document.getElementById('editDeptName').value.trim();
+  const pass = document.getElementById('editDeptPass').value.trim();
+  if(!name||!pass) return;
+  db.run(`UPDATE departments SET name=?, password=? WHERE id=?`,[name,pass,editingDeptId]);
+  persistLocal();
+  fillDeptPicker();
+  renderCalendar();
+  debouncedSync();
+  showToast('گۆڕانکاری هەڵگیرا ✓');
+}
+function deleteDept(){
+  if(!confirm('دڵنیایت لە سڕینەوەی ئەم بەشە و هەموو داتاکانی؟')) return;
+  db.run(`DELETE FROM employee_attendance WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
+  db.run(`DELETE FROM attendance WHERE dept_id=${editingDeptId}`);
+  db.run(`DELETE FROM shifts WHERE dept_id=${editingDeptId}`);
+  db.run(`DELETE FROM employees WHERE dept_id=${editingDeptId}`);
+  db.run(`DELETE FROM departments WHERE id=${editingDeptId}`);
+  persistLocal();
+  closeModal('deptEditModal');
+  fillDeptPicker();
+  renderCalendar();
+  debouncedSync();
+  showToast('بەش سڕایەوە');
+}
+function renderShiftsEditList(){
+  const wrap = document.getElementById('shiftsEditList');
+  wrap.innerHTML='';
+  const res = db.exec(`SELECT id,name,code,hours FROM shifts WHERE dept_id=${editingDeptId} ORDER BY id`);
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML='<div class="muted">هیچ شەفتێک نییە</div>';
+    return;
+  }
+  res[0].values.forEach(([id,name,code,hours])=>{
+    const div=document.createElement('div');
+    div.className='listItem';
+    div.innerHTML=`
+      <div class="info"><b>${escapeHtml(name)}</b><span>ئایدی: ${escapeHtml(code||'-')}${hours?' • کات: '+escapeHtml(hours):''}</span></div>
+      <div class="btns"><button class="btn btn-danger btn-sm" onclick="deleteShift(${id})">🗑️</button></div>`;
+    wrap.appendChild(div);
+  });
+}
+function fillShiftPreset(name,hours){
+  document.getElementById('newShiftName').value = name;
+  document.getElementById('newShiftHours').value = hours;
+  document.getElementById('newShiftCode').focus();
+}
+function addShift(){
+  const name = document.getElementById('newShiftName').value.trim();
+  const code = document.getElementById('newShiftCode').value.trim();
+  const hours = document.getElementById('newShiftHours').value.trim();
+  if(!name){ showToast('ناوی شەفت پێویستە'); return; }
+  db.run(`INSERT INTO shifts (dept_id,name,code,hours) VALUES (?,?,?,?)`,[editingDeptId,name,code,hours]);
+  persistLocal();
+  document.getElementById('newShiftName').value='';
+  document.getElementById('newShiftCode').value='';
+  document.getElementById('newShiftHours').value='';
+  renderShiftsEditList();
+  renderShiftsSummary();
+  renderEmployeesList();
+  debouncedSync();
+  showToast('شەفت زیاد کرا ✓');
+}
+function deleteShift(id){
+  if(!confirm('سڕینەوەی ئەم شەفتە؟')) return;
+  db.run(`DELETE FROM attendance WHERE shift_id=${id}`);
+  db.run(`DELETE FROM shifts WHERE id=${id}`);
+  persistLocal();
+  renderShiftsEditList();
+  renderShiftsSummary();
+  renderEmployeesList();
+  renderCalendar();
+  debouncedSync();
+}
+
+/* ======================================================================
+   ڕێکخستنەکان (ئەدمین)
+   ====================================================================== */
+function openSettings(){
+  document.getElementById('supabaseUrl').value = supabaseUrl;
+  document.getElementById('supabaseKey').value = supabaseKey;
+  refreshSyncStatusUI();
+  openModal('settingsModal');
+}
+function setSettingsTab(tab){
+  document.getElementById('settingsTab_cloud').style.display = tab==='cloud'?'block':'none';
+  document.getElementById('settingsTab_admin').style.display = tab==='admin'?'block':'none';
+  document.getElementById('tabBtn_cloud').classList.toggle('active', tab==='cloud');
+  document.getElementById('tabBtn_admin').classList.toggle('active', tab==='admin');
+}
+function changeAdminPass(){
+  const np = document.getElementById('newAdminPass').value.trim();
+  if(!np){ showToast('وشەی نهێنی پێویستە'); return; }
+  setSetting('admin_password', np);
+  document.getElementById('newAdminPass').value='';
+  debouncedSync();
+  showToast('وشەی نهێنی ئەدمین گۆڕدرا ✓');
+}
+
+/* ======================================================================
+   Supabase: هەڵگرتنی SQLite لە cloud
+   ====================================================================== */
+function initSupabaseClient(){
+  if(!supabaseUrl || !supabaseKey || !window.supabase) return null;
+  try{
+    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
+      auth:{persistSession:false, autoRefreshToken:false, detectSessionInUrl:false}
+    });
+    return supabaseClient;
+  }catch(e){
+    console.warn('Supabase init failed',e);
+    supabaseClient=null;
+    return null;
+  }
+}
+
+function saveSupabaseConfig(){
+  const url=document.getElementById('supabaseUrl').value.trim().replace(/\/$/,'');
+  const key=document.getElementById('supabaseKey').value.trim();
+  if(!url || !key){ showToast('Supabase URL و Key پێویستن'); return; }
+  try{ new URL(url); }catch(e){ showToast('Supabase URL دروست نییە'); return; }
+  supabaseUrl=url;
+  supabaseKey=key;
+  localStorage.setItem('att_supabase_url',url);
+  localStorage.setItem('att_supabase_key',key);
+  initSupabaseClient();
+  showToast('زانیاری Supabase هەڵگیرا ✓');
+  refreshSyncStatusUI();
+}
+
+function connectSupabase(){
+  saveSupabaseConfig();
+  if(!supabaseClient){ setSyncStatus('error'); return; }
+  manualSync();
+}
+
+function bytesToBase64(bytes){
+  let binary='';
+  const chunk=0x8000;
+  for(let i=0;i<bytes.length;i+=chunk){
+    binary += String.fromCharCode(...bytes.subarray(i,Math.min(i+chunk,bytes.length)));
+  }
+  return btoa(binary);
+}
+function base64ToBytes(b64){
+  const binary=atob(b64);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  return bytes;
+}
+
+async function uploadToSupabase(){
+  if(!supabaseClient) initSupabaseClient();
+  if(!supabaseClient){ setSyncStatus('needAuth'); return false; }
+  try{
+    const bytes=exportDbBytes();
+    const dbBase64=bytesToBase64(bytes);
+    const {error}=await supabaseClient.from(SUPABASE_TABLE).upsert({
+      app_id:SUPABASE_APP_ID,
+      db_base64:dbBase64,
+      updated_at:new Date().toISOString()
+    },{onConflict:'app_id'});
+    if(error) throw error;
+    setSyncStatus('synced');
+    return true;
+  }catch(e){
+    console.error('Supabase upload failed',e);
+    setSyncStatus('error');
+    return false;
+  }
+}
+
+async function downloadFromSupabase(){
+  if(!supabaseClient) initSupabaseClient();
+  if(!supabaseClient) return false;
+  try{
+    const {data,error}=await supabaseClient
+      .from(SUPABASE_TABLE)
+      .select('db_base64,updated_at')
+      .eq('app_id',SUPABASE_APP_ID)
+      .maybeSingle();
+    if(error) throw error;
+    if(!data || !data.db_base64) return false;
+    loadDbFromBytes(base64ToBytes(data.db_base64));
+    persistLocal();
+    setSyncStatus('synced');
+    return true;
+  }catch(e){
+    console.warn('Supabase download failed',e);
+    setSyncStatus('error');
+    return false;
+  }
+}
+
+let syncTimer=null;
+function debouncedSync(){
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>{ uploadToSupabase(); },1500);
+}
+
+async function manualSync(){
+  setSyncStatus('syncing');
+  const ok=await uploadToSupabase();
+  if(ok){
+    showToast('Supabase ـدا هاوکات کرا ✓');
+    refreshUIAfterSync();
+  }
+}
+
+function setSyncStatus(state){
+  const el=document.getElementById('syncStatus');
+  const map={
+    synced:['هاوکاتکراوە','green'],
+    syncing:['هاوکاتکردن...','orange'],
+    needAuth:['Supabase پێک نەهاتووە','orange'],
+    error:['هەڵە لە Supabase','orange'],
+    idle:['هەڵنەگیراوە','gray']
+  };
+  const [txt,color]=map[state]||map.idle;
+  el.innerHTML=`${txt}<i class="syncDot ${color}"></i>`;
+}
+function refreshSyncStatusUI(){
+  const el=document.getElementById('cloudStatus');
+  if(el) el.textContent=supabaseClient ? '✅ پەیوەندی بە Supabase ئامادەیە' : 'پەیوەندی نەکراوە بە Supabase';
+  setSyncStatus(supabaseClient?'synced':'idle');
+}
+function refreshUIAfterSync(){
+  if(currentUser && currentUser.role==='admin') fillDeptPicker();
+  renderCalendar();
+  renderShiftsSummary();
+  renderEmployeesList();
+}
+
+/* ======================================================================
+   یارمەتیدەرەکان
+   ====================================================================== */
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ======================================================================
+   دەستپێکردنی گشتی
+   ====================================================================== */
+(async function boot(){
+  await initSql();
+  const hasCache = loadLocalCache();
+  if(!hasCache){
+    createFreshDb();
+  }
+  initSupabaseClient();
+  // ئەگەر داتای cloud هەبێت، نوێترین SQLite دابەزێنە
+  try{
+    if(supabaseClient){
+      const remoteLoaded = await downloadFromSupabase();
+      if(!remoteLoaded && hasCache){ await uploadToSupabase(); }
+      else if(!remoteLoaded && !hasCache){ await uploadToSupabase(); }
+    }
+  }catch(e){ console.warn('silent Supabase sync failed', e); }
+
+  document.getElementById('loginPass').addEventListener('keydown', e=>{
+    if(e.key==='Enter') doLogin();
+  });
+})();
+</script>
+
+
+</body></html>
