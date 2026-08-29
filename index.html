@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/Hcc/Downloads/attendance_app_1.html -->
+<!-- saved from url=(0043)file:///C:/Users/Hcc/Downloads/index_1.html -->
 <html lang="ckb" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>سیستەمی ئامادەبوونی کارمەندان</title>
 <link rel="preconnect" href="https://fonts.googleapis.com/">
-<link href="./سیستەمی ئامادەبوونی کارمەندان_files/css2" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<link href="file:///C:/Users/Hcc/Downloads/%D8%B3%DB%8C%D8%B3%D8%AA%DB%95%D9%85%DB%8C%20%D8%A6%D8%A7%D9%85%D8%A7%D8%AF%DB%95%D8%A8%D9%88%D9%88%D9%86%DB%8C%20%DA%A9%D8%A7%D8%B1%D9%85%DB%95%D9%86%D8%AF%D8%A7%D9%86_files/css2" rel="stylesheet">
+<script src="./index_files/supabase-js@2"></script>
+<script src="./index_files/sql-wasm.js.download"></script>
 <style>
   :root{
     --brand:#dbd80f;
@@ -222,7 +222,7 @@
       <span id="whoRole">-</span>
     </div>
     <div class="actions">
-      <span id="syncStatus" class="muted" style="font-size:11px;display:flex;align-items:center;">هەڵنەگیراوە<i class="syncDot gray"></i></span>
+      <span id="syncStatus" class="muted" style="font-size:11px;display:flex;align-items:center;">هاوکاتکراوە<i class="syncDot green"></i></span>
       <button class="iconbtn" title="هاوکاتکردن لەگەڵ Supabase" onclick="manualSync()">🔄</button>
       <button class="iconbtn" id="settingsBtn" title="ڕێکخستن" onclick="openSettings()" style="display:none;">⚙️</button>
       <button class="iconbtn" title="چوونەدەرەوە" onclick="logout()">🚪</button>
@@ -481,6 +481,7 @@ let supabaseUrl = localStorage.getItem('att_supabase_url') || 'https://yhkgtdnok
 let supabaseKey = localStorage.getItem('att_supabase_key') || 'sb_publishable_NGqMjtVE0yu9MM_dfV5J-g_Zok1XUGu';
 const SUPABASE_TABLE = 'attendance_app_state';
 const SUPABASE_APP_ID = 'attendance_9tVRkHu0E4aLT55kRLuUyEHTSFEowsHI';
+let lastSyncedAt = localStorage.getItem('att_last_synced_at') || null;
 
 const KURDISH_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1304,12 +1305,15 @@ async function uploadToSupabase(){
   try{
     const bytes=exportDbBytes();
     const dbBase64=bytesToBase64(bytes);
+    const nowIso=new Date().toISOString();
     const {error}=await supabaseClient.from(SUPABASE_TABLE).upsert({
       app_id:SUPABASE_APP_ID,
       db_base64:dbBase64,
-      updated_at:new Date().toISOString()
+      updated_at:nowIso
     },{onConflict:'app_id'});
     if(error) throw error;
+    lastSyncedAt=nowIso;
+    localStorage.setItem('att_last_synced_at', nowIso);
     setSyncStatus('synced');
     return true;
   }catch(e){
@@ -1332,6 +1336,8 @@ async function downloadFromSupabase(){
     if(!data || !data.db_base64) return false;
     loadDbFromBytes(base64ToBytes(data.db_base64));
     persistLocal();
+    lastSyncedAt = data.updated_at || new Date().toISOString();
+    localStorage.setItem('att_last_synced_at', lastSyncedAt);
     setSyncStatus('synced');
     return true;
   }catch(e){
@@ -1347,11 +1353,48 @@ function debouncedSync(){
   syncTimer=setTimeout(()=>{ uploadToSupabase(); },1500);
 }
 
+// تەنها کاتی نوێترین updated_at لە cloud وەردەگرێت، بەبێ ئەوەی هەموو داتابەیسەکە دابەزێنێت
+async function getRemoteUpdatedAt(){
+  if(!supabaseClient) initSupabaseClient();
+  if(!supabaseClient) return null;
+  try{
+    const {data,error}=await supabaseClient
+      .from(SUPABASE_TABLE)
+      .select('updated_at')
+      .eq('app_id',SUPABASE_APP_ID)
+      .maybeSingle();
+    if(error) throw error;
+    return data ? data.updated_at : null;
+  }catch(e){
+    console.warn('getRemoteUpdatedAt failed', e);
+    return null;
+  }
+}
+
+// ئەگەر داتای cloud لە داتای ئێستای ئامێرەکە نوێتر بێت، خۆکارانە دابەزێنە
+async function pullIfRemoteNewer(silent){
+  const remoteUpdatedAt = await getRemoteUpdatedAt();
+  if(!remoteUpdatedAt) return false;
+  if(!lastSyncedAt || new Date(remoteUpdatedAt) > new Date(lastSyncedAt)){
+    const ok = await downloadFromSupabase();
+    if(ok){
+      refreshUIAfterSync();
+      if(!silent) showToast('داتای نوێتر لە ئامێرێکی تر هاتووە و هێنرا ✓');
+    }
+    return ok;
+  }
+  return false;
+}
+
 async function manualSync(){
   setSyncStatus('syncing');
+  // یەکەم: ببینە ئایا داتای cloud نوێترە لەوەی ئێستا لای ئێمە (بۆ ڕێگریکردن لە سڕینەوەی
+  // گۆڕانکاری ئامێرێکی تر بە داتای کۆنی ئەم ئامێرە)
+  const pulled = await pullIfRemoteNewer(true);
+  // پاشان: هەرچی گۆڕانکاری تازەی ئەم ئامێرەیە بینێرە بۆ cloud
   const ok=await uploadToSupabase();
   if(ok){
-    showToast('Supabase ـدا هاوکات کرا ✓');
+    showToast(pulled ? 'نوێترین داتا هاتووە و هاوکات کرا ✓' : 'Supabase ـدا هاوکات کرا ✓');
     refreshUIAfterSync();
   }
 }
@@ -1414,8 +1457,20 @@ function showToast(msg){
   document.getElementById('loginPass').addEventListener('keydown', e=>{
     if(e.key==='Enter') doLogin();
   });
+
+  // کاتێک ئەپەکە دەگەڕێتەوە سەر شاشە (گۆڕین لەنێوان ئەپەکان لە مۆبایل، یان گەڕانەوە بۆ تاب)
+  // بپشکنە ئایا داتای نوێتر لە ئامێرێکی تر هاتووەتە cloud، ئەگەر بەڵێ خۆکارانە بیهێنە
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='visible' && currentUser){
+      pullIfRemoteNewer(false);
+    }
+  });
+  window.addEventListener('focus', ()=>{
+    if(currentUser) pullIfRemoteNewer(false);
+  });
 })();
 </script>
+
 
 
 </body></html>
