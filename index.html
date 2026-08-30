@@ -1501,7 +1501,7 @@ function deleteShift(id){
    ====================================================================== */
 function openSettings(){
   const adminPass = getSetting('admin_password');
-  const input = prompt('وشەی نهێنی دووجار بنووسە بۆ کردنەوەی ڕێکخستن (بۆ نموونە ئەگەر وشەی نهێنی 1212 بێت، بنووسە 12121212):');
+  const input = prompt(' (وشەی نهێنی بنووسە بۆ کردنەوەی ڕێکخستن):');
   if(input===null) return; // پاشگەزبوونەوە
   if(input !== (adminPass + adminPass)){
     showToast('وشەی نهێنی هەڵەیە ❌');
