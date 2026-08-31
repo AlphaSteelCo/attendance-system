@@ -522,6 +522,18 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
 <div class="toast" id="toast"></div>
 
+<!-- ===== Monthly Absence Detail Modal ===== -->
+<div class="overlay" id="absenceDetailModal">
+  <div class="modal">
+    <div class="modalHead">
+      <h3 id="absenceDetailTitle">کارمەند</h3>
+      <button class="closeX" onclick="closeModal('absenceDetailModal')">✕</button>
+    </div>
+    <div class="muted" style="font-size:12px;margin-bottom:8px;" id="absenceDetailSub"></div>
+    <div id="absenceDetailList"></div>
+  </div>
+</div>
+
 <!-- ===== Day Modal ===== -->
 <div class="overlay" id="dayModal">
   <div class="modal">
@@ -997,13 +1009,13 @@ function renderMonthlyReport(){
   const term = (document.getElementById('monthlyReportSearch')?.value || '').trim();
   const stmt = db.prepare(`
     SELECT e.id, e.name, e.emp_code, e.shift_type,
-      SUM(CASE WHEN ea.status='present' THEN 1 ELSE 0 END) as p,
       SUM(CASE WHEN ea.status='absent' THEN 1 ELSE 0 END) as a
     FROM employees e
     LEFT JOIN employee_attendance ea
       ON ea.employee_id = e.id AND ea.year=? AND ea.month=?
     WHERE e.dept_id=? AND (e.name LIKE ? OR e.emp_code LIKE ?)
     GROUP BY e.id
+    HAVING a > 0
     ORDER BY CAST(e.emp_code AS INTEGER) ASC, e.emp_code ASC
   `);
   stmt.bind([selYear, selMonth+1, currentDeptId, `%${term}%`, `%${term}%`]);
@@ -1012,23 +1024,56 @@ function renderMonthlyReport(){
   stmt.free();
 
   if(!rows.length){
-    wrap.innerHTML = `<div class="muted">${term ? 'هیچ کارمەندێک بەم گەڕانە نەدۆزرایەوە' : 'هیچ کارمەندێک زیاد نەکراوە بۆ ئەم بەشە'}</div>`;
+    wrap.innerHTML = `<div class="muted">${term ? 'هیچ کارمەندێک بەم گەڕانە نەدۆزرایەوە' : 'هیچ کارمەندێک ئامادەنەبووی نییە بۆ ئەم مانگە 🎉'}</div>`;
     return;
   }
   rows.forEach(row=>{
-    const {id,name,emp_code,shift_type,p,a} = row;
+    const {id,name,emp_code,shift_type,a} = row;
     const div=document.createElement('div');
     div.className='listItem';
+    div.style.cursor='pointer';
     const shiftIcon = shift_type==='شەو' ? '🌙' : (shift_type==='ڕۆژ' ? '🌞' : '');
     const codeLabel = emp_code ? ('ئایدی: '+emp_code) : null;
     const shiftLabel = shift_type ? (shiftIcon+' '+shift_type) : null;
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml([codeLabel,shiftLabel].filter(Boolean).join(' • ')||'-')}</span></div>
       <div class="btns" style="gap:10px;font-size:12.5px;font-weight:700;">
-        <span class="p">✓${p||0}</span><span class="a">✗${a||0}</span>
+        <span class="a">✗${a||0} ڕۆژ</span>
       </div>`;
+    div.onclick = ()=>openAbsenceDetail(id);
     wrap.appendChild(div);
   });
+}
+
+function openAbsenceDetail(employeeId){
+  const empRes = db.exec(`SELECT name,emp_code,shift_type FROM employees WHERE id=${employeeId}`);
+  if(!empRes.length || !empRes[0].values.length) return;
+  const [name,emp_code,shift_type] = empRes[0].values[0];
+  document.getElementById('absenceDetailTitle').textContent = name;
+  const shiftIcon = shift_type==='شەو' ? '🌙' : (shift_type==='ڕۆژ' ? '🌞' : '');
+  const codeLabel = emp_code ? ('ئایدی: '+emp_code) : null;
+  const shiftLabel = shift_type ? (shiftIcon+' '+shift_type) : null;
+  document.getElementById('absenceDetailSub').textContent =
+    [codeLabel,shiftLabel, `مانگی ${KURDISH_MONTHS[selMonth]} ${selYear}`].filter(Boolean).join(' • ');
+
+  const res = db.exec(
+    `SELECT day FROM employee_attendance WHERE employee_id=${employeeId} AND year=${selYear} AND month=${selMonth+1} AND status='absent' ORDER BY day ASC`
+  );
+  const listWrap = document.getElementById('absenceDetailList');
+  listWrap.innerHTML='';
+  const days = res.length ? res[0].values.map(v=>v[0]) : [];
+  if(!days.length){
+    listWrap.innerHTML = '<div class="muted">هیچ ڕۆژێکی ئامادەنەبوونی تۆمار نەکراوە</div>';
+  } else {
+    days.forEach(day=>{
+      const dow = new Date(selYear, selMonth, day).getDay();
+      const div=document.createElement('div');
+      div.className='listItem';
+      div.innerHTML = `<div class="info"><b>ڕۆژی ${day}</b><span>${WEEKDAYS[dow]}</span></div><div class="btns"><span class="a">✗</span></div>`;
+      listWrap.appendChild(div);
+    });
+  }
+  openModal('absenceDetailModal');
 }
 
 function buildYearPicker(){
