@@ -1,0 +1,6 @@
+{
+  "name": "سیستەمی ئامادەبوونی کارمەندان - Employee Attendance System",
+  "description": "سیستەمی بەڕێوەبردنی ئامادەبوون و کارمەندانی نەهاتوو لەگەڵ گەڕان و خشتەی بەشەکان",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
