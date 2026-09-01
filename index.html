@@ -373,6 +373,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .empToggleBtn.on-absent{background:var(--bad-bg);border-color:var(--bad);color:var(--bad);}
   .empToggleBtn:disabled{opacity:.5;cursor:not-allowed;}
   .dayLockNote{background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .absEmpCard{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff;}
+  .absEmpHead{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  .absEmpName{font-size:14.5px;}
+  .absCodeChip{background:#f2f3f0;color:var(--muted);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;}
+  .absBadgeTotal{background:var(--bad);color:#fff;border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:800;white-space:nowrap;}
+  .absDatesWrap{display:flex;flex-wrap:wrap;gap:6px;}
+  .absDateChip{background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;cursor:pointer;}
+  .absDateChip:hover{border-color:var(--bad);color:var(--bad);}
   .numRow{display:flex;gap:8px;}
   .numGroup{flex:1;}
   .numGroup label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
@@ -1031,21 +1039,42 @@ function renderMonthlyReport(){
     wrap.innerHTML = `<div class="muted">${term ? 'هیچ کارمەندێک بەم گەڕانە نەدۆزرایەوە' : 'هیچ کارمەندێک ئامادەنەبووی نییە بۆ ئەم مانگە 🎉'}</div>`;
     return;
   }
+
+  // وەرگرتنی هەموو ڕۆژە ئامادەنەبووەکان بۆ هەموو کارمەندانی بەشەکە بە یەک query
+  const daysStmt = db.prepare(`
+    SELECT ea.employee_id, ea.day
+    FROM employee_attendance ea
+    JOIN employees e ON e.id = ea.employee_id
+    WHERE e.dept_id=? AND ea.year=? AND ea.month=? AND ea.status='absent'
+    ORDER BY ea.day ASC
+  `);
+  daysStmt.bind([currentDeptId, selYear, selMonth+1]);
+  const daysByEmp = {};
+  while(daysStmt.step()){
+    const r = daysStmt.getAsObject();
+    (daysByEmp[r.employee_id] = daysByEmp[r.employee_id] || []).push(r.day);
+  }
+  daysStmt.free();
+
+  const pad2 = n => String(n).padStart(2,'0');
   rows.forEach(row=>{
-    const {id,name,emp_code,shift_type,a} = row;
-    const div=document.createElement('div');
-    div.className='listItem';
-    div.style.cursor='pointer';
-    const shiftIcon = shift_type==='شەو' ? '🌙' : (shift_type==='ڕۆژ' ? '🌞' : '');
-    const codeLabel = emp_code ? ('ئایدی: '+emp_code) : null;
-    const shiftLabel = shift_type ? (shiftIcon+' '+shift_type) : null;
-    div.innerHTML=`
-      <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml([codeLabel,shiftLabel].filter(Boolean).join(' • ')||'-')}</span></div>
-      <div class="btns" style="gap:10px;font-size:12.5px;font-weight:700;">
-        <span class="a">✗${a||0} ڕۆژ</span>
-      </div>`;
-    div.onclick = ()=>openAbsenceDetail(id);
-    wrap.appendChild(div);
+    const {id,name,emp_code,a} = row;
+    const days = daysByEmp[id] || [];
+    const card=document.createElement('div');
+    card.className='absEmpCard';
+    const codeChip = emp_code ? `<span class="absCodeChip">${escapeHtml(emp_code)}</span>` : '';
+    const dateChips = days.map(day=>{
+      const dateStr = `${pad2(day)}/${pad2(selMonth+1)}/${selYear}`;
+      return `<span class="absDateChip" onclick="openDayModal(${day})">📅${dateStr}</span>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="absEmpHead">
+        <b class="absEmpName">${escapeHtml(name)}</b>
+        ${codeChip}
+        <span class="absBadgeTotal">کۆی ${a||0} ڕۆژ ئامادەنەبووە</span>
+      </div>
+      <div class="absDatesWrap">${dateChips}</div>`;
+    wrap.appendChild(card);
   });
 }
 
