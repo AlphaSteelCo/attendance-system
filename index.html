@@ -427,7 +427,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <p>وشەی نهێنی خۆت بنووسە بۆ چوونەژوورەوە</p>
     <div class="field">
       <label>وشەی نهێنی</label>
-      <input type="password" id="loginPass" placeholder="••••••" autocomplete="off">
+      <input type="password" id="loginPass" placeholder="••••••" autocomplete="off" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     </div>
     <button class="btn btn-primary" onclick="doLogin()">چوونەژوورەوە</button>
     <div id="loginError"></div>
@@ -613,7 +613,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;deptsModal&#39;)">✕</button>
     </div>
     <input class="miniInput" id="newDeptName" placeholder="ناوی بەشی نوێ">
-    <input class="miniInput" id="newDeptPass" placeholder="وشەی نهێنی سەرپەرشتیار">
+    <input class="miniInput" id="newDeptPass" placeholder="وشەی نهێنی سەرپەرشتیار" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="addDepartment()">➕ زیادکردنی بەش</button>
     <hr class="sep">
     <div id="deptsList"></div>
@@ -628,7 +628,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;deptEditModal&#39;)">✕</button>
     </div>
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
-    <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی">
+    <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی</button>
     <button class="btn btn-danger btn-sm" style="width:100%;margin-bottom:14px;" onclick="deleteDept()">🗑️ سڕینەوەی ئەم بەشە</button>
     <hr class="sep">
@@ -722,7 +722,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
     <div id="settingsTab_admin" style="display:none;">
       <label class="muted" style="font-size:12px;">وشەی نهێنی نوێی ئەدمین</label>
-      <input class="miniInput" id="newAdminPass" type="password" placeholder="وشەی نهێنی نوێ">
+      <input class="miniInput" id="newAdminPass" type="password" placeholder="وشەی نهێنی نوێ" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
       <button class="btn btn-outline" style="width:100%;" onclick="changeAdminPass()">💾 گۆڕین</button>
     </div>
   </div>
