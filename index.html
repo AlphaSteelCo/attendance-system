@@ -359,17 +359,20 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .shiftRow .shiftName .code{color:var(--muted);font-weight:500;font-size:11.5px;}
 
   .empDayRow{
-    display:flex;align-items:center;flex-wrap:nowrap;gap:8px 10px;
+    display:flex;flex-direction:column;gap:8px;
     border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;
+  }
+  .empInfoInline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .empNameInline{font-weight:700;font-size:13.5px;white-space:nowrap;}
+  .miniBadge{background:#f2f3f0;color:var(--muted);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .empActionsRow{
+    display:flex;align-items:center;gap:8px;flex-wrap:nowrap;
     overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;
   }
-  .empInfoInline{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;flex-shrink:0;}
-  .empNameInline{font-weight:700;font-size:13.5px;white-space:nowrap;}
-  .miniBadge{background:#f2f3f0;color:var(--muted);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
   .empToggleBtns{display:flex;gap:5px;flex:0 0 auto;margin-right:auto;padding-right:2px;}
   .empToggleBtn{
     padding:7px 10px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
-    font-size:14px;font-weight:700;color:var(--muted);white-space:nowrap;line-height:1;
+    font-size:14px;font-weight:700;color:var(--muted);white-space:nowrap;line-height:1;flex-shrink:0;
   }
   .empToggleBtn.on-present{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);}
   .empToggleBtn.on-absent{background:var(--bad-bg);border-color:var(--bad);color:var(--bad);}
@@ -1542,11 +1545,15 @@ function openDayModal(day){
     const disabledAttr = dayIsEditable ? '' : 'disabled';
     const codeBadge = code ? `<span class="miniBadge">${escapeHtml(code)}</span>` : '';
     const shiftBadge = shiftType ? `<span class="miniBadge">${shiftIcon} ${escapeHtml(shiftType)}</span>` : '';
+    const hoursBadge = hours ? `<span class="miniBadge">🕐 ${escapeHtml(hours)}</span>` : '';
     row.innerHTML = `
       <div class="empInfoInline">
         <b class="empNameInline">${escapeHtml(name)}</b>
         ${codeBadge}
         ${shiftBadge}
+        ${hoursBadge}
+      </div>
+      <div class="empActionsRow">
         <div class="lateTimeInline" id="lateTimeBox_${eid}">
           <div class="lateTimeField">
             <input type="text" inputmode="numeric" autocomplete="off" id="lateStart_${eid}"
@@ -1562,11 +1569,11 @@ function openDayModal(day){
             <div class="timeSuggest" id="lateEndSuggest_${eid}"></div>
           </div>
         </div>
-      </div>
-      <div class="empToggleBtns">
-        <button type="button" class="empToggleBtn" ${disabledAttr} title="ئامادە" onclick="setEmpDayStatus(${eid},'present')">✅</button>
-        <button type="button" class="empToggleBtn" ${disabledAttr} title="درەنگ" onclick="setEmpDayStatus(${eid},'late')">🕒</button>
-        <button type="button" class="empToggleBtn" ${disabledAttr} title="نەهاتوو" onclick="setEmpDayStatus(${eid},'absent')">❌</button>
+        <div class="empToggleBtns">
+          <button type="button" class="empToggleBtn" ${disabledAttr} title="ئامادە" onclick="setEmpDayStatus(${eid},'present')">✅</button>
+          <button type="button" class="empToggleBtn" ${disabledAttr} title="درەنگ" onclick="setEmpDayStatus(${eid},'late')">🕒</button>
+          <button type="button" class="empToggleBtn" ${disabledAttr} title="نەهاتوو" onclick="setEmpDayStatus(${eid},'absent')">❌</button>
+        </div>
       </div>`;
     listWrap.appendChild(row);
 
