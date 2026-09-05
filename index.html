@@ -1707,7 +1707,10 @@ function shareDayReportWhatsApp(){
       let line = nameWithCode;
       if(status==='late'){
         const t = dayLateTimes[eid];
-        if(t && t.start) line += ` - کاتی هاتن: ${t.start}`;
+        const parts = [];
+        if(t && t.start) parts.push(`کاتی هاتن: ${t.start}`);
+        if(t && t.end) parts.push(`کاتی ڕۆشتن: ${t.end}`);
+        if(parts.length) line += ` - ${parts.join(' | ')}`;
       }
       presentLines.push(line);
     } else if(status==='absent'){
