@@ -570,8 +570,10 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها ئەدمین دەتوانێت دەستکاری بکات.</div>
     <input class="miniInput stickySearch" id="dayEmpSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
     <div id="dayEmployeesList"></div>
-    <button class="btn btn-primary" style="margin-top:6px;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
-    <button class="btn" style="margin-top:8px;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن بۆ سەرپەرشتیار (واتساپ)</button>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="btn btn-primary" style="flex:1;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
+      <button class="btn" style="flex:1;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن</button>
+    </div>
   </div>
 </div>
 
@@ -1698,16 +1700,18 @@ function shareDayReportWhatsApp(){
     const eid = row.id.replace('empDayRow_','');
     const nameEl = row.querySelector('.empNameInline');
     const name = nameEl ? nameEl.textContent : '';
+    const code = row.dataset.code || '';
+    const nameWithCode = code ? `${name} (${code})` : name;
     const status = dayAttendanceState[eid];
     if(status==='present' || status==='late'){
-      let line = name;
+      let line = nameWithCode;
       if(status==='late'){
         const t = dayLateTimes[eid];
-        if(t && t.start) line += ` (کاتی هاتن: ${t.start})`;
+        if(t && t.start) line += ` - کاتی هاتن: ${t.start}`;
       }
       presentLines.push(line);
     } else if(status==='absent'){
-      absentLines.push(name);
+      absentLines.push(nameWithCode);
     }
   });
 
