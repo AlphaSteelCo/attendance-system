@@ -571,6 +571,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <input class="miniInput stickySearch" id="dayEmpSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
     <div id="dayEmployeesList"></div>
     <button class="btn btn-primary" style="margin-top:6px;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
+    <button class="btn" style="margin-top:8px;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن بۆ سەرپەرشتیار (واتساپ)</button>
   </div>
 </div>
 
@@ -1682,6 +1683,42 @@ function saveDayData(){
   renderCalendar();
   showToast('پاشەکەوت کرا ✓');
   debouncedSync();
+}
+
+/* ناردنی ڕاپۆرتی ئامادەبوونی ڕۆژ بۆ سەرپەرشتیار لە ڕێگەی واتساپ */
+function shareDayReportWhatsApp(){
+  const deptRes = db.exec(`SELECT name FROM departments WHERE id=${currentDeptId}`);
+  const deptName = deptRes.length && deptRes[0].values.length ? deptRes[0].values[0][0] : '';
+  const dateStr = `${selDay} ${KURDISH_MONTHS[selMonth]} ${selYear}`;
+
+  const rows = document.querySelectorAll('#dayEmployeesList .empDayRow');
+  const presentLines = [];
+  const absentLines = [];
+  rows.forEach(row=>{
+    const eid = row.id.replace('empDayRow_','');
+    const nameEl = row.querySelector('.empNameInline');
+    const name = nameEl ? nameEl.textContent : '';
+    const status = dayAttendanceState[eid];
+    if(status==='present' || status==='late'){
+      let line = name;
+      if(status==='late'){
+        const t = dayLateTimes[eid];
+        if(t && t.start) line += ` (کاتی هاتن: ${t.start})`;
+      }
+      presentLines.push(line);
+    } else if(status==='absent'){
+      absentLines.push(name);
+    }
+  });
+
+  let msg = `📋 تۆمارکردنی ئامادەبوونی بەشی ${deptName}\n📅 ${dateStr}\n\n`;
+  msg += `✅ ئامادەبوو (${presentLines.length}):\n`;
+  msg += presentLines.length ? presentLines.map((n,i)=>`${i+1}. ${n}`).join('\n') : '-';
+  msg += `\n\n❌ ئامادەنەبوو (${absentLines.length}):\n`;
+  msg += absentLines.length ? absentLines.map((n,i)=>`${i+1}. ${n}`).join('\n') : '-';
+
+  const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
 }
 
 /* ======================================================================
