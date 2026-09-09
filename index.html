@@ -959,9 +959,40 @@ function finishLogin(){
 
 function logout(){
   currentUser=null;
+  localStorage.removeItem('att_last_role');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('app').style.display='none';
   document.getElementById('loginPass').value='';
+}
+
+// کاتێک لاپەڕە Refresh دەکرێت، ئەگەر پێشتر چوونەژوورەوە کراوە، خۆکارانە بگەڕێوە
+// بۆ ئەپەکە (بەبێ داوای وشەی نهێنی دووبارە) دوای ئەوەی نوێترین داتای cloud هاتووە
+function tryRestoreSession(){
+  let saved;
+  try{ saved = JSON.parse(localStorage.getItem('att_last_role')||'null'); }
+  catch(e){ saved = null; }
+  if(!saved || !saved.role) return false;
+
+  if(saved.role==='admin'){
+    currentUser = {role:'admin'};
+    finishLogin();
+    return true;
+  }
+  if(saved.role==='dept' && saved.deptId!=null){
+    try{
+      const id = parseInt(saved.deptId,10);
+      const res = db.exec(`SELECT id,name FROM departments WHERE id=${id}`);
+      if(res.length && res[0].values.length){
+        const [rid,name] = res[0].values[0];
+        currentUser = {role:'dept', deptId:rid, deptName:name};
+        finishLogin();
+        return true;
+      }
+    }catch(e){ console.warn('tryRestoreSession failed', e); }
+  }
+  // داتای هەڵگیراو ئیتر کاری پێ ناکرێت (بۆ نموونە بەشەکە سڕاوەتەوە)
+  localStorage.removeItem('att_last_role');
+  return false;
 }
 
 /* ======================================================================
@@ -2098,6 +2129,10 @@ function showToast(msg){
       else if(!remoteLoaded && !hasCache){ await uploadToSupabase(); }
     }
   }catch(e){ console.warn('silent Supabase sync failed', e); }
+
+  // دوای بارکردنی نوێترین داتا، ئەگەر پێشتر چوونەژوورەوە کرابوو خۆکارانە بگەڕێوە
+  // (پێویست بە دووبارە داخڵبوون ناکات لە هەر Refresh-ێک)
+  tryRestoreSession();
 
   document.getElementById('loginPass').addEventListener('keydown', e=>{
     if(e.key==='Enter') doLogin();
