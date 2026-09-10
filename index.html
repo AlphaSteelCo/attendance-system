@@ -754,7 +754,26 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 </div>
 
 <!-- ===== Settings Modal (admin) ===== -->
+<!-- ===== Admin Unlock (enter password to open Settings) ===== -->
+<div class="overlay" id="adminUnlockModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div class="modalHead">
+      <h3>🔒 کردنەوەی ڕێکخستن</h3>
+      <button class="closeX" onclick="closeAdminUnlock()">✕</button>
+    </div>
+    <div class="settingsIcon" style="width:52px;height:52px;font-size:22px;margin:4px auto 14px;">🛡️</div>
+    <p class="muted" style="font-size:13px;margin:0 0 16px;">وشەی نهێنی ئەدمین بنووسە بۆ کردنەوەی ڕێکخستنی سیستەم</p>
+    <div class="passWrap" style="text-align:right;">
+      <input class="miniInput" id="adminUnlockPass" type="password" placeholder="••••••" style="text-align:center;letter-spacing:6px;" autocomplete="off">
+      <button type="button" class="eyeToggle" id="unlockEyeBtn" title="پیشاندان" onclick="togglePassField('adminUnlockPass','unlockEyeBtn')">👁️</button>
+    </div>
+    <div id="adminUnlockError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+    <button class="btn btn-primary" style="width:100%;" onclick="submitAdminUnlock()">🔓 کردنەوە</button>
+  </div>
+</div>
+
 <div class="overlay" id="settingsModal">
+
   <div class="modal">
     <div class="modalHead">
       <h3>ڕێکخستنی سیستەم</h3>
@@ -1967,13 +1986,26 @@ function deleteShift(id){
    ڕێکخستنەکان (ئەدمین)
    ====================================================================== */
 function openSettings(){
+  document.getElementById('adminUnlockPass').value = '';
+  document.getElementById('adminUnlockError').textContent = '';
+  openModal('adminUnlockModal');
+  setTimeout(()=>{ const el=document.getElementById('adminUnlockPass'); if(el) el.focus(); }, 50);
+}
+function closeAdminUnlock(){
+  closeModal('adminUnlockModal');
+}
+function submitAdminUnlock(){
   const adminPass = getSetting('admin_password');
-  const input = prompt(' (وشەی نهێنی بنووسە بۆ کردنەوەی ڕێکخستن):');
-  if(input===null) return; // پاشگەزبوونەوە
+  const input = document.getElementById('adminUnlockPass').value;
+  const errEl = document.getElementById('adminUnlockError');
+  if(!input){ errEl.textContent='تکایە وشەی نهێنی بنووسە'; return; }
   if(input !== (adminPass + adminPass)){
-    showToast('وشەی نهێنی هەڵەیە ❌');
+    errEl.textContent='وشەی نهێنی هەڵەیە ❌';
+    document.getElementById('adminUnlockPass').value='';
+    document.getElementById('adminUnlockPass').focus();
     return;
   }
+  closeModal('adminUnlockModal');
   document.getElementById('supabaseKey').value = supabaseKey;
   refreshSyncStatusUI();
   openModal('settingsModal');
@@ -2237,6 +2269,9 @@ function hideBootLoader(){
 
   document.getElementById('loginPass').addEventListener('keydown', e=>{
     if(e.key==='Enter') doLogin();
+  });
+  document.getElementById('adminUnlockPass').addEventListener('keydown', e=>{
+    if(e.key==='Enter') submitAdminUnlock();
   });
 
   // کاتێک ئەپەکە دەگەڕێتەوە سەر شاشە (گۆڕین لەنێوان ئەپەکان لە مۆبایل، یان گەڕانەوە بۆ تاب)
