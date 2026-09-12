@@ -773,6 +773,27 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   </div>
 </div>
 
+<div class="overlay" id="deleteEmployeeConfirmModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div class="modalHead">
+      <h3>🗑️ سڕینەوەی کارمەند</h3>
+      <button class="closeX" onclick="closeModal('deleteEmployeeConfirmModal')">✕</button>
+    </div>
+    <div class="settingsIcon" style="width:52px;height:52px;font-size:22px;margin:4px auto 14px;background:#fdecea;color:var(--bad);">🗑️</div>
+    <p class="muted" style="font-size:13px;margin:0 0 4px;">دڵنیایت لە سڕینەوەی <b id="deleteEmpNameLabel"></b>؟</p>
+    <p class="muted" style="font-size:12px;margin:0 0 16px;">ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی بەشەکە بنووسە بۆ دووپاتکردنەوە</p>
+    <div class="passWrap" style="text-align:right;">
+      <input class="miniInput" id="deleteEmpPass" type="password" placeholder="••••••" style="text-align:center;letter-spacing:6px;" autocomplete="off">
+      <button type="button" class="eyeToggle" id="deleteEmpEyeBtn" title="پیشاندان" onclick="togglePassField('deleteEmpPass','deleteEmpEyeBtn')">👁️</button>
+    </div>
+    <div id="deleteEmpError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal('deleteEmployeeConfirmModal')">پاشگەزبوونەوە</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="confirmDeleteEmployee()">🗑️ سڕینەوە</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="settingsModal">
 
   <div class="modal">
@@ -1473,20 +1494,31 @@ function saveEmployeeEdit(){
   debouncedSync();
   showToast(newDeptId===currentDeptId ? 'گۆڕانکاری هەڵگیرا ✓' : 'کارمەند گوازرایەوە بۆ بەشی نوێ ✓');
 }
+let pendingDeleteDeptPass = null;
 function deleteEmployee(){
   const deptRes = db.exec(`SELECT d.password FROM employees e JOIN departments d ON d.id=e.dept_id WHERE e.id=${editingEmpId}`);
-  const deptPass = (deptRes.length && deptRes[0].values.length) ? deptRes[0].values[0][0] : null;
-  const pass = prompt('تکایە وشەی نهێنی بەشەکە بنووسە بۆ سڕینەوەی کارمەند:');
-  if(pass===null) return; // پاشگەزبوونەوە
-  if(deptPass===null || pass !== deptPass){
-    showToast('وشەی نهێنی هەڵەیە ❌');
+  pendingDeleteDeptPass = (deptRes.length && deptRes[0].values.length) ? deptRes[0].values[0][0] : null;
+  const nameEl = document.getElementById('editEmpName');
+  document.getElementById('deleteEmpNameLabel').textContent = nameEl ? nameEl.value : '';
+  document.getElementById('deleteEmpPass').value = '';
+  document.getElementById('deleteEmpError').textContent = '';
+  closeModal('editEmployeeModal');
+  openModal('deleteEmployeeConfirmModal');
+  setTimeout(()=>{ const el=document.getElementById('deleteEmpPass'); if(el) el.focus(); }, 50);
+}
+function confirmDeleteEmployee(){
+  const pass = document.getElementById('deleteEmpPass').value;
+  const errEl = document.getElementById('deleteEmpError');
+  if(pendingDeleteDeptPass===null || pass !== pendingDeleteDeptPass){
+    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
+    document.getElementById('deleteEmpPass').value='';
+    document.getElementById('deleteEmpPass').focus();
     return;
   }
-  if(!confirm('دڵنیایت لە سڕینەوەی ئەم کارمەندە؟')) return;
   db.run(`DELETE FROM employee_attendance WHERE employee_id=${editingEmpId}`);
   db.run(`DELETE FROM employees WHERE id=${editingEmpId}`);
   persistLocal();
-  closeModal('editEmployeeModal');
+  closeModal('deleteEmployeeConfirmModal');
   refreshAfterEmployeeChange();
   debouncedSync();
   showToast('کارمەند سڕایەوە');
@@ -2308,6 +2340,9 @@ function hideBootLoader(){
   });
   document.getElementById('adminUnlockPass').addEventListener('keydown', e=>{
     if(e.key==='Enter') submitAdminUnlock();
+  });
+  document.getElementById('deleteEmpPass').addEventListener('keydown', e=>{
+    if(e.key==='Enter') confirmDeleteEmployee();
   });
 
   // کاتێک ئەپەکە دەگەڕێتەوە سەر شاشە (گۆڕین لەنێوان ئەپەکان لە مۆبایل، یان گەڕانەوە بۆ تاب)
