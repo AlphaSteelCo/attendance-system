@@ -625,6 +625,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <h3>هەموو بەشەکان</h3>
       <button class="closeX" onclick="closeModal(&#39;allDeptsModal&#39;)">✕</button>
     </div>
+    <input class="miniInput stickySearch" id="allDeptsSearch" placeholder="🔍 گەڕان بە ناو یان کۆد لە هەموو بەشەکان..." oninput="renderAllDepartments()">
     <div id="allDeptsList"></div>
   </div>
 </div>
@@ -1504,8 +1505,44 @@ function refreshAfterEmployeeChange(){
    هەموو بەشەکان: گەڕان لەنێو بەشەکان و بینینی کارمەندانی هەریەکێک
    ====================================================================== */
 function openAllDepartments(){
+  const searchBox = document.getElementById('allDeptsSearch');
+  if(searchBox) searchBox.value='';
+  renderAllDepartments();
+  openModal('allDeptsModal');
+}
+function renderAllDepartments(){
   const wrap = document.getElementById('allDeptsList');
   wrap.innerHTML='';
+  const term = (document.getElementById('allDeptsSearch')?.value || '').trim();
+
+  if(term){
+    // گەڕان بە ناو یان کۆد بۆ کارمەند لەنێو هەموو بەشەکان
+    const res = db.exec(
+      `SELECT e.id, e.name, e.emp_code, e.shift_type, d.id, d.name
+       FROM employees e JOIN departments d ON d.id = e.dept_id
+       WHERE e.name LIKE ? OR e.emp_code LIKE ?
+       ORDER BY d.name ASC, CAST(e.emp_code AS INTEGER) ASC, e.emp_code ASC`,
+      [`%${term}%`, `%${term}%`]
+    );
+    if(!res.length || !res[0].values.length){
+      wrap.innerHTML = '<div class="muted">هیچ کارمەندێک بەم گەڕانە نەدۆزرایەوە</div>';
+      return;
+    }
+    res[0].values.forEach(([empId,empName,empCode,shiftType,deptId,deptName])=>{
+      const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
+      const extra = [empCode?('ئایدی: '+empCode):null, '🏢 '+deptName, shiftType?(shiftIcon+' '+shiftType):null].filter(Boolean).join(' • ');
+      const div=document.createElement('div');
+      div.className='listItem';
+      div.style.cursor='pointer';
+      div.innerHTML=`
+        <div class="info"><b>${escapeHtml(empName)}</b><span>${escapeHtml(extra)}</span></div>
+        <div class="btns"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditEmployee(${empId})">✏️</button></div>`;
+      div.onclick = ()=>openDeptDetail(deptId);
+      wrap.appendChild(div);
+    });
+    return;
+  }
+
   const res = db.exec(`SELECT id,name FROM departments ORDER BY name`);
   if(!res.length || !res[0].values.length){
     wrap.innerHTML = '<div class="muted">هیچ بەشێک زیاد نەکراوە</div>';
@@ -1523,7 +1560,6 @@ function openAllDepartments(){
       wrap.appendChild(div);
     });
   }
-  openModal('allDeptsModal');
 }
 
 let deptDetailId = null;
