@@ -614,6 +614,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div style="display:flex;gap:8px;margin-top:6px;">
       <button class="btn btn-primary" style="flex:1;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
       <button class="btn" style="flex:1;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن</button>
+      <button class="btn btn-outline" style="flex:1;" onclick="printDayReport()">🖨️ پرێنت</button>
     </div>
   </div>
 </div>
@@ -1924,6 +1925,108 @@ function shareDayReportWhatsApp(){
 
   const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
+}
+
+/* پرێنتکردنی ڕاپۆرتی ئامادەبوونی ڕۆژ — کۆپیەک بۆ سەرۆکی بەش لەگەڵ شوێنی ئیمزای چاودێر + سەرپەرشتیار */
+function printDayReport(){
+  const deptRes = db.exec(`SELECT name FROM departments WHERE id=${currentDeptId}`);
+  const deptName = deptRes.length && deptRes[0].values.length ? deptRes[0].values[0][0] : '';
+  const dateStr = `${selDay} ${KURDISH_MONTHS[selMonth]} ${selYear}`;
+
+  const rows = document.querySelectorAll('#dayEmployeesList .empDayRow');
+  let tableRows = '';
+  let idx = 0, presentCount=0, lateCount=0, absentCount=0;
+  rows.forEach(row=>{
+    const eid = row.id.replace('empDayRow_','');
+    const nameEl = row.querySelector('.empNameInline');
+    const name = nameEl ? nameEl.textContent : '';
+    const code = row.dataset.code || '';
+    const status = dayAttendanceState[eid];
+    let statusLabel = '—', statusClass='';
+    if(status==='present'){ statusLabel='✔ ئامادە'; presentCount++; statusClass='pr-present'; }
+    else if(status==='late'){ statusLabel='🕒 درەنگ'; lateCount++; statusClass='pr-late'; }
+    else if(status==='absent'){ statusLabel='✘ نەهاتوو'; absentCount++; statusClass='pr-absent'; }
+    let timeStr = '—';
+    if(status==='late'){
+      const t = dayLateTimes[eid];
+      const parts=[];
+      if(t && t.start) parts.push(t.start);
+      if(t && t.end) parts.push(t.end);
+      timeStr = parts.length ? parts.join(' — ') : '—';
+    }
+    idx++;
+    tableRows += `<tr>
+      <td>${idx}</td>
+      <td class="prName">${escapeHtml(name)}</td>
+      <td>${escapeHtml(code ? code.toUpperCase() : '—')}</td>
+      <td class="${statusClass}">${statusLabel}</td>
+      <td>${escapeHtml(timeStr)}</td>
+    </tr>`;
+  });
+  const total = presentCount+lateCount+absentCount;
+
+  const printedAt = new Date().toLocaleString('en-GB');
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ckb">
+<head>
+<meta charset="UTF-8">
+<title>ڕاپۆرتی ئامادەبوونی ڕۆژانە - ${escapeHtml(deptName)}</title>
+<style>
+  *{ box-sizing:border-box; }
+  body{ font-family:'Segoe UI', Tahoma, Arial, sans-serif; padding:28px; color:#1a1a1a; }
+  .prHead{ text-align:center; margin-bottom:16px; border-bottom:2px solid #333; padding-bottom:12px; }
+  .prHead h1{ margin:0 0 6px; font-size:20px; }
+  .prHead .sub{ font-size:13.5px; color:#333; }
+  table{ width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+  th,td{ border:1px solid #888; padding:7px 8px; text-align:center; }
+  th{ background:#eee; }
+  .prName{ text-align:right; }
+  .pr-present{ color:#1a7a1a; font-weight:700; }
+  .pr-late{ color:#a25f08; font-weight:700; }
+  .pr-absent{ color:#b30000; font-weight:700; }
+  .prSummary{ margin-top:14px; font-size:13.5px; display:flex; gap:20px; flex-wrap:wrap; }
+  .prSign{ display:flex; justify-content:space-between; margin-top:80px; }
+  .prSignBox{ width:42%; text-align:center; }
+  .prSignBox .line{ border-top:1px solid #333; margin-top:55px; padding-top:6px; font-size:13.5px; font-weight:700; }
+  .prFooterNote{ margin-top:26px; font-size:11px; color:#777; text-align:left; }
+  @media print{ body{ padding:8px; } }
+</style>
+</head>
+<body>
+  <div class="prHead">
+    <h1>ڕاپۆرتی ئامادەبوونی ڕۆژانە</h1>
+    <div class="sub">بەش: ${escapeHtml(deptName)} &nbsp;|&nbsp; بەروار: ${escapeHtml(dateStr)}</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>#</th><th>ناوی کارمەند</th><th>ئایدی</th><th>باری ئامادەبوون</th><th>کاتی هاتن / ڕۆشتن</th></tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+    </tbody>
+  </table>
+  <div class="prSummary">
+    <span>کۆی کارمەندان: ${total}</span>
+    <span class="pr-present">✔ ئامادە: ${presentCount}</span>
+    <span class="pr-late">🕒 درەنگ: ${lateCount}</span>
+    <span class="pr-absent">✘ نەهاتوو: ${absentCount}</span>
+  </div>
+  <div class="prSign">
+    <div class="prSignBox"><div class="line">ئیمزای چاودێر</div></div>
+    <div class="prSignBox"><div class="line">ئیمزای سەرپەرشتیار</div></div>
+  </div>
+  <div class="prFooterNote">چاپکراوە: ${escapeHtml(printedAt)}</div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if(!win){ showToast('تکایە ڕێگە بە پەنجەرەی popup بدە بۆ پرێنتکردن'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  const doPrint = ()=>{ try{ win.focus(); win.print(); }catch(e){} };
+  win.onload = doPrint;
+  setTimeout(doPrint, 350);
 }
 
 /* ======================================================================
