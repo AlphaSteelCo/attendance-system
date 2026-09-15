@@ -608,7 +608,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;dayModal&#39;)">✕</button>
     </div>
     <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
-    <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها دوێنێ، ئەمڕۆ و بەیانی دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
+    <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
     <input class="miniInput stickySearch" id="dayEmpSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
     <div id="dayEmployeesList"></div>
     <div style="display:flex;gap:8px;margin-top:6px;">
@@ -1915,17 +1915,15 @@ function openDayModal(day){
   const todayObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.round((selDateObj - todayObj) / 86400000);
   const isToday = diffDays === 0;
-  const isYesterday = diffDays === -1;
-  const isTomorrow = diffDays === 1;
   const canDaily = hasPerm('daily', currentDeptId);
-  // ئەدمینەکان (سوپەر ئەدمین، سەرپەرشتیار، ئەدمینی سنووردار) دەتوانن ڕۆژی دوێنێ و ئەمڕۆ و بەیانی دەستکاری بکەن
-  dayIsEditable = canDaily && ((currentUser && currentUser.role==='admin') || isToday || isYesterday || isTomorrow);
+  // تەنها سوپەر ئەدمین دەتوانێت هەموو ڕۆژەکان دەستکاری بکات، ئەدمینەکانی تر تەنها ئەمڕۆ
+  dayIsEditable = canDaily && ((currentUser && currentUser.role==='admin') || isToday);
   const lockNote = document.getElementById('dayLockNote');
   const saveBtn = document.getElementById('dayModalSaveBtn');
   if(lockNote){
     lockNote.textContent = !canDaily
       ? '🔒 دەسەڵاتی دەستکاریکردنی ڕۆژانەت لەم بەشەدا نییە.'
-      : '🔒 تەنها دوێنێ، ئەمڕۆ و بەیانی دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
+      : '🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
     lockNote.style.display = dayIsEditable ? 'none' : 'flex';
   }
   if(saveBtn) saveBtn.style.display = dayIsEditable ? '' : 'none';
