@@ -608,13 +608,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;dayModal&#39;)">✕</button>
     </div>
     <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
-    <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها ئەدمین دەتوانێت دەستکاری بکات.</div>
+    <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها دوێنێ، ئەمڕۆ و بەیانی دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
     <input class="miniInput stickySearch" id="dayEmpSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
     <div id="dayEmployeesList"></div>
     <div style="display:flex;gap:8px;margin-top:6px;">
       <button class="btn btn-primary" style="flex:1;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
       <button class="btn" style="flex:1;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن</button>
-      <button class="btn btn-outline" style="flex:1;" onclick="printDayReport()">🖨️ پرێنت</button>
+      <button class="btn" style="flex:1;background:#4a4a4a;color:#fff;" onclick="printDayReport()">🖨️ پرێنت</button>
     </div>
   </div>
 </div>
@@ -972,7 +972,7 @@ function createFreshDb(){
     );
     CREATE TABLE limited_admin_depts (
       admin_id INTEGER, dept_id INTEGER,
-      can_add INTEGER DEFAULT 1, can_edit INTEGER DEFAULT 1, can_delete INTEGER DEFAULT 0,
+      can_add INTEGER DEFAULT 1, can_edit INTEGER DEFAULT 1, can_delete INTEGER DEFAULT 0, can_daily INTEGER DEFAULT 1,
       UNIQUE(admin_id, dept_id)
     );
   `);
@@ -1021,7 +1021,7 @@ function ensureSchema(){
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS limited_admin_depts (
     admin_id INTEGER, dept_id INTEGER,
-    can_add INTEGER DEFAULT 1, can_edit INTEGER DEFAULT 1, can_delete INTEGER DEFAULT 0,
+    can_add INTEGER DEFAULT 1, can_edit INTEGER DEFAULT 1, can_delete INTEGER DEFAULT 0, can_daily INTEGER DEFAULT 1,
     UNIQUE(admin_id, dept_id)
   )`);
   const ladCols = db.exec(`PRAGMA table_info(limited_admin_depts)`);
@@ -1034,6 +1034,9 @@ function ensureSchema(){
   }
   if(!ladColNames.includes('can_delete')){
     db.run(`ALTER TABLE limited_admin_depts ADD COLUMN can_delete INTEGER DEFAULT 0`);
+  }
+  if(!ladColNames.includes('can_daily')){
+    db.run(`ALTER TABLE limited_admin_depts ADD COLUMN can_daily INTEGER DEFAULT 1`);
   }
 }
 
@@ -1118,13 +1121,13 @@ async function doLogin(){
   const laRes = db.exec(`SELECT id,name FROM limited_admins WHERE password='${pass.replace(/'/g,"''")}'`);
   if(laRes.length && laRes[0].values.length){
     const [id,name] = laRes[0].values[0];
-    const deptRes = db.exec(`SELECT dept_id,can_add,can_edit,can_delete FROM limited_admin_depts WHERE admin_id=${id}`);
+    const deptRes = db.exec(`SELECT dept_id,can_add,can_edit,can_delete,can_daily FROM limited_admin_depts WHERE admin_id=${id}`);
     const deptIds = [];
     const deptPerms = {};
     if(deptRes.length){
-      deptRes[0].values.forEach(([did,ca,ce,cd])=>{
+      deptRes[0].values.forEach(([did,ca,ce,cd,cdaily])=>{
         deptIds.push(did);
-        deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd};
+        deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd, canDaily:!!cdaily};
       });
     }
     if(!deptIds.length){
@@ -1187,6 +1190,7 @@ function hasPerm(action, deptId){
     if(action==='add') return !!perm.canAdd;
     if(action==='edit') return !!perm.canEdit;
     if(action==='delete') return !!perm.canDelete;
+    if(action==='daily') return !!perm.canDaily;
   }
   return false;
 }
@@ -1235,13 +1239,13 @@ function tryRestoreSession(){
       const res = db.exec(`SELECT id,name FROM limited_admins WHERE id=${id}`);
       if(res.length && res[0].values.length){
         const [rid,name] = res[0].values[0];
-        const deptRes = db.exec(`SELECT dept_id,can_add,can_edit,can_delete FROM limited_admin_depts WHERE admin_id=${rid}`);
+        const deptRes = db.exec(`SELECT dept_id,can_add,can_edit,can_delete,can_daily FROM limited_admin_depts WHERE admin_id=${rid}`);
         const deptIds = [];
         const deptPerms = {};
         if(deptRes.length){
-          deptRes[0].values.forEach(([did,ca,ce,cd])=>{
+          deptRes[0].values.forEach(([did,ca,ce,cd,cdaily])=>{
             deptIds.push(did);
-            deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd};
+            deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd, canDaily:!!cdaily};
           });
         }
         if(deptIds.length){
@@ -1907,11 +1911,23 @@ function openDayModal(day){
   if(searchBox) searchBox.value='';
 
   const now = new Date();
-  const isToday = (selYear===now.getFullYear() && selMonth===now.getMonth() && day===now.getDate());
-  dayIsEditable = (currentUser && currentUser.role==='admin') || isToday;
+  const selDateObj = new Date(selYear, selMonth, day);
+  const todayObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((selDateObj - todayObj) / 86400000);
+  const isToday = diffDays === 0;
+  const isYesterday = diffDays === -1;
+  const isTomorrow = diffDays === 1;
+  const canDaily = hasPerm('daily', currentDeptId);
+  // ئەدمینەکان (سوپەر ئەدمین، سەرپەرشتیار، ئەدمینی سنووردار) دەتوانن ڕۆژی دوێنێ و ئەمڕۆ و بەیانی دەستکاری بکەن
+  dayIsEditable = canDaily && ((currentUser && currentUser.role==='admin') || isToday || isYesterday || isTomorrow);
   const lockNote = document.getElementById('dayLockNote');
   const saveBtn = document.getElementById('dayModalSaveBtn');
-  if(lockNote) lockNote.style.display = dayIsEditable ? 'none' : 'flex';
+  if(lockNote){
+    lockNote.textContent = !canDaily
+      ? '🔒 دەسەڵاتی دەستکاریکردنی ڕۆژانەت لەم بەشەدا نییە.'
+      : '🔒 تەنها دوێنێ، ئەمڕۆ و بەیانی دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
+    lockNote.style.display = dayIsEditable ? 'none' : 'flex';
+  }
   if(saveBtn) saveBtn.style.display = dayIsEditable ? '' : 'none';
 
   const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${currentDeptId} ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
@@ -2342,10 +2358,10 @@ function openEditLimitedAdmin(id){
     if(res.length && res[0].values.length){
       [name,pass] = res[0].values[0];
     }
-    const dres = db.exec(`SELECT dept_id,can_add,can_edit,can_delete FROM limited_admin_depts WHERE admin_id=${id}`);
+    const dres = db.exec(`SELECT dept_id,can_add,can_edit,can_delete,can_daily FROM limited_admin_depts WHERE admin_id=${id}`);
     if(dres.length){
-      dres[0].values.forEach(([did,ca,ce,cd])=>{
-        deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd};
+      dres[0].values.forEach(([did,ca,ce,cd,cdaily])=>{
+        deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd, canDaily:!!cdaily};
       });
     }
   }
@@ -2365,10 +2381,11 @@ function openEditLimitedAdmin(id){
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;cursor:pointer;">
           <input type="checkbox" class="laDeptView" value="${did}" ${isVisible?'checked':''} onchange="toggleLaDeptPerms(${did},this.checked)"> 🏢 ${escapeHtml(dname)}
         </label>
-        <div class="laDeptPermsRow" id="laDeptPerms_${did}" style="display:flex;gap:16px;margin:6px 0 0 26px;font-size:12.5px;${isVisible?'':'opacity:0.35;pointer-events:none;'}">
+        <div class="laDeptPermsRow" id="laDeptPerms_${did}" style="display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 0 26px;font-size:12.5px;${isVisible?'':'opacity:0.35;pointer-events:none;'}">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="laDeptAdd" data-dept="${did}" ${perm&&perm.canAdd?'checked':''} ${isVisible?'':'disabled'}> ➕ زیادکردن</label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="laDeptEdit" data-dept="${did}" ${perm&&perm.canEdit?'checked':''} ${isVisible?'':'disabled'}> ✏️ دەستکاری</label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="laDeptDelete" data-dept="${did}" ${perm&&perm.canDelete?'checked':''} ${isVisible?'':'disabled'}> 🗑️ سڕینەوە</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="laDeptDaily" data-dept="${did}" ${perm&&perm.canDaily?'checked':''} ${isVisible?'':'disabled'}> 📅 ڕۆژانە</label>
         </div>`;
       deptsWrap.appendChild(row);
     });
@@ -2396,11 +2413,13 @@ function saveLimitedAdmin(){
     const addChk = document.querySelector(`.laDeptAdd[data-dept="${did}"]`);
     const editChk = document.querySelector(`.laDeptEdit[data-dept="${did}"]`);
     const delChk = document.querySelector(`.laDeptDelete[data-dept="${did}"]`);
+    const dailyChk = document.querySelector(`.laDeptDaily[data-dept="${did}"]`);
     assignments.push({
       did,
       canAdd: addChk && addChk.checked ? 1 : 0,
       canEdit: editChk && editChk.checked ? 1 : 0,
-      canDelete: delChk && delChk.checked ? 1 : 0
+      canDelete: delChk && delChk.checked ? 1 : 0,
+      canDaily: dailyChk && dailyChk.checked ? 1 : 0
     });
   });
   if(!assignments.length){ showToast('تکایە لانیکەم یەک بەش دیاری بکە'); return; }
@@ -2415,8 +2434,8 @@ function saveLimitedAdmin(){
     adminId = idRes[0].values[0][0];
   }
   assignments.forEach(a=>{
-    db.run(`INSERT INTO limited_admin_depts (admin_id,dept_id,can_add,can_edit,can_delete) VALUES (?,?,?,?,?)`,
-      [adminId,a.did,a.canAdd,a.canEdit,a.canDelete]);
+    db.run(`INSERT INTO limited_admin_depts (admin_id,dept_id,can_add,can_edit,can_delete,can_daily) VALUES (?,?,?,?,?,?)`,
+      [adminId,a.did,a.canAdd,a.canEdit,a.canDelete,a.canDaily]);
   });
   persistLocal();
   closeModal('limitedAdminEditModal');
