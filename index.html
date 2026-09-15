@@ -560,7 +560,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div class="card" id="employeesCard">
       <div class="rowbetween" style="margin-bottom:10px;">
         <div class="sectionTitle" style="margin:0;">👥 کارمەندانی ئەم بەشە</div>
-        <button class="btn btn-outline btn-sm" onclick="openAddEmployeeModal()">➕ زیادکردن</button>
+        <button class="btn btn-outline btn-sm" id="addEmpBtn" onclick="openAddEmployeeModal()">➕ زیادکردن</button>
       </div>
       <input class="miniInput stickySearch" id="employeesListSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderEmployeesList()">
       <div id="employeesList"></div>
@@ -750,8 +750,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <label class="muted" style="font-size:12px;">گواستنەوە بۆ بەشێکی تر</label>
       <select id="editEmpDept" class="selectBox" style="width:100%;margin:6px 0 10px;"></select>
     </div>
-    <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="saveEmployeeEdit()">💾 پاشەکەوتکردن</button>
-    <button class="btn btn-danger" style="width:100%;" onclick="deleteEmployee()">🗑️ سڕینەوەی کارمەند</button>
+    <button class="btn btn-outline" id="empSaveBtn" style="width:100%;margin-bottom:10px;" onclick="saveEmployeeEdit()">💾 پاشەکەوتکردن</button>
+    <button class="btn btn-danger" id="empDeleteBtn" style="width:100%;" onclick="deleteEmployee()">🗑️ سڕینەوەی کارمەند</button>
   </div>
 </div>
 
@@ -864,6 +864,18 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         </div>
         <button class="btn btn-outline" style="width:100%;" onclick="changeAdminPass()">💾 گۆڕین</button>
       </div>
+
+      <div class="settingsCard">
+        <div class="settingsCardHead">
+          <span class="settingsIcon">🗝️</span>
+          <div>
+            <div class="settingsCardTitle">دەسەڵاتی پاسۆردی بەشەکان</div>
+            <div class="settingsCardDesc">دیاریبکە هەر پاسۆردی بەشێک چ کارێک لەسەر کارمەندەکانی خۆی بتوانێت بکات.</div>
+          </div>
+        </div>
+        <div id="deptPermissionsList"></div>
+        <div class="settingsHint">ئەم ڕێکخستنانە تەنها کاریگەری لەسەر پاسۆردی بەشەکانە؛ پاسۆردی ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -906,7 +918,7 @@ function createFreshDb(){
   db = new SQL.Database();
   db.run(`
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT);
+    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT, can_add INTEGER DEFAULT 1, can_edit INTEGER DEFAULT 1, can_delete INTEGER DEFAULT 1);
     CREATE TABLE shifts (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, code TEXT, hours TEXT);
     CREATE TABLE employees (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, emp_code TEXT, shift_type TEXT, hours TEXT);
     CREATE TABLE attendance (
@@ -961,6 +973,17 @@ function ensureSchema(){
   }
   if(!eaColNames.includes('end_time')){
     db.run(`ALTER TABLE employee_attendance ADD COLUMN end_time TEXT`);
+  }
+  const deptCols = db.exec(`PRAGMA table_info(departments)`);
+  const deptColNames = deptCols.length ? deptCols[0].values.map(row => row[1]) : [];
+  if(!deptColNames.includes('can_add')){
+    db.run(`ALTER TABLE departments ADD COLUMN can_add INTEGER DEFAULT 1`);
+  }
+  if(!deptColNames.includes('can_edit')){
+    db.run(`ALTER TABLE departments ADD COLUMN can_edit INTEGER DEFAULT 1`);
+  }
+  if(!deptColNames.includes('can_delete')){
+    db.run(`ALTER TABLE departments ADD COLUMN can_delete INTEGER DEFAULT 1`);
   }
 }
 
@@ -1024,6 +1047,21 @@ function getSetting(key){
 function setSetting(key,val){
   db.run(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,[key,val]);
   persistLocal();
+}
+
+/* دەسەڵاتەکانی پاسۆردی بەش (زیادکردن/دەستکاری/سڕینەوەی کارمەند) */
+function deptCanDo(field){
+  if(!currentUser) return false;
+  if(currentUser.role==='admin') return true;
+  if(!currentDeptId) return false;
+  const allowed = ['can_add','can_edit','can_delete'];
+  if(!allowed.includes(field)) return false;
+  const res = db.exec(`SELECT ${field} FROM departments WHERE id=${currentDeptId}`);
+  if(res.length && res[0].values.length){
+    const v = res[0].values[0][0];
+    return v===null || v===undefined ? true : !!v;
+  }
+  return true;
 }
 
 /* ======================================================================
@@ -1395,6 +1433,8 @@ function renderShiftsSummary(){
    ====================================================================== */
 function renderEmployeesList(){
   const wrap = document.getElementById('employeesList');
+  const addBtn = document.getElementById('addEmpBtn');
+  if(addBtn) addBtn.style.display = deptCanDo('can_add') ? '' : 'none';
   if(!wrap) return;
   wrap.innerHTML='';
   if(!currentDeptId){ wrap.innerHTML='<div class="muted">-</div>'; return; }
@@ -1427,6 +1467,7 @@ function renderEmployeesList(){
 let addEmployeeTargetDeptId = null;
 function openAddEmployeeModal(){
   if(!currentDeptId){ showToast('سەرەتا بەشێک دیاری بکە'); return; }
+  if(!deptCanDo('can_add')){ showToast('🔒 ئەدمین ڕێگەت پێنادات کارمەند زیاد بکەیت'); return; }
   addEmployeeTargetDeptId = currentDeptId;
   document.getElementById('newEmpName').value='';
   document.getElementById('newEmpCode').value='';
@@ -1441,6 +1482,7 @@ function addEmployeeConfirm(){
   const hours = document.getElementById('newEmpHours').value.trim();
   const targetDeptId = addEmployeeTargetDeptId || currentDeptId;
   if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
+  if(!deptCanDo('can_add')){ showToast('🔒 ئەدمین ڕێگەت پێنادات کارمەند زیاد بکەیت'); return; }
   db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours) VALUES (?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours]);
   persistLocal();
   closeModal('addEmployeeModal');
@@ -1476,9 +1518,14 @@ function openEditEmployee(id){
   } else {
     transferWrap.style.display='none';
   }
+  const empSaveBtn = document.getElementById('empSaveBtn');
+  const empDeleteBtn = document.getElementById('empDeleteBtn');
+  if(empSaveBtn) empSaveBtn.style.display = deptCanDo('can_edit') ? '' : 'none';
+  if(empDeleteBtn) empDeleteBtn.style.display = deptCanDo('can_delete') ? '' : 'none';
   openModal('editEmployeeModal');
 }
 function saveEmployeeEdit(){
+  if(!deptCanDo('can_edit')){ showToast('🔒 ئەدمین ڕێگەت پێنادات کارمەند دەستکاری بکەیت'); return; }
   const name = document.getElementById('editEmpName').value.trim();
   const code = document.getElementById('editEmpCode').value.trim();
   const shiftType = document.getElementById('editEmpShiftType').value;
@@ -1497,6 +1544,7 @@ function saveEmployeeEdit(){
 }
 let pendingDeleteDeptPass = null;
 function deleteEmployee(){
+  if(!deptCanDo('can_delete')){ showToast('🔒 ئەدمین ڕێگەت پێنادات کارمەند بسڕیتەوە'); return; }
   const deptRes = db.exec(`SELECT d.password FROM employees e JOIN departments d ON d.id=e.dept_id WHERE e.id=${editingEmpId}`);
   pendingDeleteDeptPass = (deptRes.length && deptRes[0].values.length) ? deptRes[0].values[0][0] : null;
   const nameEl = document.getElementById('editEmpName');
@@ -2179,6 +2227,7 @@ function submitAdminUnlock(){
   closeModal('adminUnlockModal');
   document.getElementById('supabaseKey').value = supabaseKey;
   refreshSyncStatusUI();
+  renderDeptPermissionsList();
   openModal('settingsModal');
 }
 function setSettingsTab(tab){
@@ -2194,6 +2243,44 @@ function changeAdminPass(){
   document.getElementById('newAdminPass').value='';
   debouncedSync();
   showToast('وشەی نهێنی ئەدمین گۆڕدرا ✓');
+}
+function renderDeptPermissionsList(){
+  const wrap = document.getElementById('deptPermissionsList');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  const res = db.exec(`SELECT id,name,can_add,can_edit,can_delete FROM departments ORDER BY name`);
+  if(!res.length || !res[0].values.length){
+    wrap.innerHTML='<div class="muted">هیچ بەشێک نییە</div>';
+    return;
+  }
+  res[0].values.forEach(([id,name,canAdd,canEdit,canDelete])=>{
+    const row=document.createElement('div');
+    row.style.cssText='border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;';
+    const chk = (checked)=> (checked===null || checked===undefined || checked) ? 'checked' : '';
+    row.innerHTML=`
+      <div style="font-weight:800;font-size:13px;margin-bottom:8px;">${escapeHtml(name)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="checkbox" ${chk(canAdd)} onchange="toggleDeptPermission(${id},'can_add',this.checked)"> ➕ زیادکردنی کارمەند
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="checkbox" ${chk(canEdit)} onchange="toggleDeptPermission(${id},'can_edit',this.checked)"> ✏️ دەستکاریکردنی کارمەند
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="checkbox" ${chk(canDelete)} onchange="toggleDeptPermission(${id},'can_delete',this.checked)"> 🗑️ سڕینەوەی کارمەند
+        </label>
+      </div>`;
+    wrap.appendChild(row);
+  });
+}
+function toggleDeptPermission(id, field, checked){
+  const allowed = ['can_add','can_edit','can_delete'];
+  if(!allowed.includes(field)) return;
+  db.run(`UPDATE departments SET ${field}=? WHERE id=?`,[checked?1:0,id]);
+  persistLocal();
+  if(currentDeptId===id){ renderEmployeesList(); }
+  debouncedSync();
+  showToast('دەسەڵات نوێ کرایەوە ✓');
 }
 // پیشاندان/شاردنەوەی ناوەڕۆکی خانەی وشەی نهێنی (👁️ ⇄ 🙈)
 function togglePassField(inputId, btnId){
