@@ -4,8 +4,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>سیستەمی ئامادەبوونی کارمەندان</title>
-<link rel="preconnect" href="https://fonts.googleapis.com/">
-  <link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#dbd80f">
 <script>
 /* ===== @supabase/supabase-js v2 (self-hosted inline, no CDN dependency) ===== */
@@ -830,7 +829,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
           <span class="settingsIcon">🔄</span>
           <div>
             <div class="settingsCardTitle">هاوکاتکردن</div>
-            <div class="settingsCardDesc">داتای ئەم ئامێرە و cloud هاوکات بکە بە دەستی.</div>
+            <div class="settingsCardDesc">ئەپەکە ئۆفلاین کاردەکات. کاتێک ئینتەرنێت هەبێت، داتابەیس خۆکارانە تازە دەبێتەوە.</div>
           </div>
         </div>
         <button class="btn btn-outline btn-sm" style="width:100%;" onclick="manualSync()">🔄 تازەکردنەوە ئێستا</button>
@@ -930,6 +929,10 @@ let supabaseKey = localStorage.getItem('att_supabase_key') || 'sb_publishable_NG
 const SUPABASE_TABLE = 'attendance_app_state';
 const SUPABASE_APP_ID = 'attendance_9tVRkHu0E4aLT55kRLuUyEHTSFEowsHI';
 let lastSyncedAt = localStorage.getItem('att_last_synced_at') || null;
+let localDirty = localStorage.getItem('att_local_dirty') === '1';
+let syncInFlight = false;
+const IDB_NAME = 'attendance_offline_db';
+const IDB_STORE = 'kv';
 
 const KURDISH_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1071,16 +1074,78 @@ function downloadDbBackup(){
   }
 }
 
-function persistLocal(){
+function isOnline(){
+  return navigator.onLine !== false;
+}
+function markLocalDirty(){
+  localDirty = true;
+  try{ localStorage.setItem('att_local_dirty','1'); }catch(e){}
+}
+function clearLocalDirty(){
+  localDirty = false;
+  try{ localStorage.removeItem('att_local_dirty'); }catch(e){}
+}
+function openOfflineIdb(){
+  return new Promise(resolve=>{
+    if(!window.indexedDB){ resolve(null); return; }
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = ()=>{
+      const idb = req.result;
+      if(!idb.objectStoreNames.contains(IDB_STORE)) idb.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> resolve(null);
+  });
+}
+async function idbPutBytes(bytes){
+  const idb = await openOfflineIdb();
+  if(!idb) return false;
+  return new Promise(resolve=>{
+    try{
+      const tx = idb.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(bytes, 'att_db_bytes');
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> resolve(false);
+    }catch(e){ resolve(false); }
+  });
+}
+async function idbGetBytes(){
+  const idb = await openOfflineIdb();
+  if(!idb) return null;
+  return new Promise(resolve=>{
+    try{
+      const tx = idb.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get('att_db_bytes');
+      req.onsuccess = ()=>{
+        const v = req.result;
+        if(!v){ resolve(null); return; }
+        resolve(v instanceof Uint8Array ? v : new Uint8Array(v));
+      };
+      req.onerror = ()=> resolve(null);
+    }catch(e){ resolve(null); }
+  });
+}
+function persistLocalStorageBytes(bytes){
   try{
-    const bytes = exportDbBytes();
     let binary='';
     for(let i=0;i<bytes.length;i++) binary+=String.fromCharCode(bytes[i]);
     localStorage.setItem('att_db_cache', btoa(binary));
+    return true;
+  }catch(e){
+    console.warn('localStorage persist skipped', e);
+    return false;
+  }
+}
+function persistLocal(fromRemote){
+  try{
+    const bytes = exportDbBytes();
+    persistLocalStorageBytes(bytes);
+    idbPutBytes(bytes).catch(()=>{});
+    if(fromRemote) clearLocalDirty();
+    else markLocalDirty();
   }catch(e){ console.warn('persistLocal failed', e); }
 }
-
-function loadLocalCache(){
+function loadDbFromLocalStorage(){
   const cached = localStorage.getItem('att_db_cache');
   if(!cached) return false;
   try{
@@ -1090,6 +1155,16 @@ function loadLocalCache(){
     loadDbFromBytes(bytes);
     return true;
   }catch(e){ console.warn('loadLocalCache failed', e); return false; }
+}
+async function loadLocalCache(){
+  try{
+    const bytes = await idbGetBytes();
+    if(bytes && bytes.length){
+      loadDbFromBytes(bytes);
+      return true;
+    }
+  }catch(e){ console.warn('idb load failed', e); }
+  return loadDbFromLocalStorage();
 }
 
 function getSetting(key){
@@ -2604,70 +2679,88 @@ function base64ToBytes(b64){
   return bytes;
 }
 
+function withTimeout(promise, ms){
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=>{
+      timer = setTimeout(()=> reject(new Error('timeout')), ms);
+    })
+  ]).finally(()=> clearTimeout(timer));
+}
+
 async function uploadToSupabase(){
+  if(!isOnline()){ setSyncStatus('offline'); return false; }
   if(!supabaseClient) initSupabaseClient();
   if(!supabaseClient){ setSyncStatus('needAuth'); return false; }
   try{
     const bytes=exportDbBytes();
     const dbBase64=bytesToBase64(bytes);
     const nowIso=new Date().toISOString();
-    const {error}=await supabaseClient.from(SUPABASE_TABLE).upsert({
+    const {error}=await withTimeout(supabaseClient.from(SUPABASE_TABLE).upsert({
       app_id:SUPABASE_APP_ID,
       db_base64:dbBase64,
       updated_at:nowIso
-    },{onConflict:'app_id'});
+    },{onConflict:'app_id'}), 12000);
     if(error) throw error;
     lastSyncedAt=nowIso;
     localStorage.setItem('att_last_synced_at', nowIso);
+    persistLocal(true);
     setSyncStatus('synced');
     return true;
   }catch(e){
     console.error('Supabase upload failed',e);
-    setSyncStatus('error');
+    setSyncStatus(isOnline() ? 'error' : 'offline');
     return false;
   }
 }
 
 async function downloadFromSupabase(){
+  if(!isOnline()) return false;
   if(!supabaseClient) initSupabaseClient();
   if(!supabaseClient) return false;
   try{
-    const {data,error}=await supabaseClient
+    const {data,error}=await withTimeout(supabaseClient
       .from(SUPABASE_TABLE)
       .select('db_base64,updated_at')
       .eq('app_id',SUPABASE_APP_ID)
-      .maybeSingle();
+      .maybeSingle(), 12000);
     if(error) throw error;
     if(!data || !data.db_base64) return false;
     loadDbFromBytes(base64ToBytes(data.db_base64));
-    persistLocal();
+    persistLocal(true);
     lastSyncedAt = data.updated_at || new Date().toISOString();
     localStorage.setItem('att_last_synced_at', lastSyncedAt);
     setSyncStatus('synced');
     return true;
   }catch(e){
     console.warn('Supabase download failed',e);
-    setSyncStatus('error');
+    setSyncStatus(isOnline() ? 'error' : 'offline');
     return false;
   }
 }
 
 let syncTimer=null;
 function debouncedSync(){
+  persistLocal();
   clearTimeout(syncTimer);
-  syncTimer=setTimeout(()=>{ uploadToSupabase(); },1500);
+  syncTimer=setTimeout(()=>{
+    if(isOnline()) uploadToSupabase();
+    else setSyncStatus('offline');
+  },1500);
 }
 
 // تەنها کاتی نوێترین updated_at لە cloud وەردەگرێت، بەبێ ئەوەی هەموو داتابەیسەکە دابەزێنێت
 async function getRemoteUpdatedAt(){
+  if(!isOnline()) return null;
   if(!supabaseClient) initSupabaseClient();
   if(!supabaseClient) return null;
   try{
-    const {data,error}=await supabaseClient
+    const {data,error}=await withTimeout(supabaseClient
       .from(SUPABASE_TABLE)
       .select('updated_at')
       .eq('app_id',SUPABASE_APP_ID)
-      .maybeSingle();
+      .maybeSingle(), 8000);
     if(error) throw error;
     return data ? data.updated_at : null;
   }catch(e){
@@ -2678,6 +2771,8 @@ async function getRemoteUpdatedAt(){
 
 // ئەگەر داتای cloud لە داتای ئێستای ئامێرەکە نوێتر بێت، خۆکارانە دابەزێنە
 async function pullIfRemoteNewer(silent){
+  if(!isOnline()) return false;
+  if(localDirty) return false;
   const remoteUpdatedAt = await getRemoteUpdatedAt();
   if(!remoteUpdatedAt) return false;
   if(!lastSyncedAt || new Date(remoteUpdatedAt) > new Date(lastSyncedAt)){
@@ -2691,12 +2786,52 @@ async function pullIfRemoteNewer(silent){
   return false;
 }
 
-async function manualSync(){
+async function syncWhenOnline(silent){
+  if(!isOnline()){ setSyncStatus('offline'); return false; }
+  if(!supabaseClient) initSupabaseClient();
+  if(!supabaseClient){ setSyncStatus('needAuth'); return false; }
+  if(syncInFlight) return false;
+  syncInFlight = true;
   setSyncStatus('syncing');
-  // یەکەم: ببینە ئایا داتای cloud نوێترە لەوەی ئێستا لای ئێمە (بۆ ڕێگریکردن لە سڕینەوەی
-  // گۆڕانکاری ئامێرێکی تر بە داتای کۆنی ئەم ئامێرە)
+  try{
+    if(!lastSyncedAt){
+      const remoteUpdatedAt = await getRemoteUpdatedAt();
+      if(remoteUpdatedAt){
+        const ok = await downloadFromSupabase();
+        if(ok) refreshUIAfterSync();
+        return ok;
+      }
+      return await uploadToSupabase();
+    }
+    if(localDirty){
+      const ok = await uploadToSupabase();
+      if(ok && !silent) showToast('گۆڕانکاری ئۆفلاین نێردرا بۆ داتابەیس ✓');
+      return ok;
+    }
+    return await pullIfRemoteNewer(silent);
+  }finally{
+    syncInFlight = false;
+    if(!isOnline()) setSyncStatus('offline');
+    else if(localDirty) setSyncStatus('pending');
+  }
+}
+
+async function manualSync(){
+  if(!isOnline()){
+    setSyncStatus('offline');
+    showToast('ئۆفلاینیت — داتا لەم ئامێرە هەڵگیراوە');
+    return;
+  }
+  setSyncStatus('syncing');
+  if(localDirty){
+    const ok=await uploadToSupabase();
+    if(ok){
+      showToast('لەگەڵ داتابەیس ✓');
+      refreshUIAfterSync();
+    }
+    return;
+  }
   const pulled = await pullIfRemoteNewer(true);
-  // پاشان: هەرچی گۆڕانکاری تازەی ئەم ئامێرەیە بینێرە بۆ cloud
   const ok=await uploadToSupabase();
   if(ok){
     showToast(pulled ? 'نوێترین داتا هاتووە و تازەکرایەوە ✓' : 'لەگەڵ داتابەیس ✓');
@@ -2706,9 +2841,12 @@ async function manualSync(){
 
 function setSyncStatus(state){
   const el=document.getElementById('syncStatus');
+  if(!el) return;
   const map={
     synced:['تازەکراوەتەوە','green'],
     syncing:['تازەکردنەوە...','orange'],
+    pending:['چاوەڕوانی ئینتەرنێت','orange'],
+    offline:['ئۆفلاین','gray'],
     needAuth:['Supabase پێک نەهاتووە','orange'],
     error:['هەڵە لە Supabase','orange'],
     idle:['هەڵنەگیراوە','gray']
@@ -2718,8 +2856,13 @@ function setSyncStatus(state){
 }
 function refreshSyncStatusUI(){
   const el=document.getElementById('cloudStatus');
-  if(el) el.textContent=supabaseClient ? '✅ پەیوەندی ئامادەیە' : 'پەیوەندی نەکراوە بە داتابەیس';
-  setSyncStatus(supabaseClient?'synced':'idle');
+  if(el){
+    if(!isOnline()) el.textContent='📵 ئۆفلاین — کاتێک ئینتەرنێت هەبێت داتابەیس تازە دەبێتەوە';
+    else el.textContent=supabaseClient ? '✅ پەیوەندی ئامادەیە' : 'پەیوەندی نەکراوە بە داتابەیس';
+  }
+  if(!isOnline()) setSyncStatus(localDirty ? 'pending' : 'offline');
+  else if(localDirty) setSyncStatus('pending');
+  else setSyncStatus(supabaseClient?'synced':'idle');
 }
 function refreshUIAfterSync(){
   if(currentUser && currentUser.role==='admin') fillDeptPicker();
@@ -2763,26 +2906,16 @@ function hideBootLoader(){
     document.getElementById('loginScreen').style.display='flex';
     const errEl = document.getElementById('loginError');
     if(errEl) errEl.textContent = 'هەڵە ڕوویدا لە بارکردنی سیستەم. تکایە لاپەڕەکە دووبارە بار بکەرەوە (Refresh). ئەگەر دووبارە بووەوە، هۆکارەکە دەکرێت لە وێبگەڕەکەت یان کاشی زۆر کۆن بێت.';
-    return; // بێ db ناتوانین بەردەوام بین
+    return;
   }
-  setBootLoaderText('بارکردنی داتا...');
-  const hasCache = loadLocalCache();
+  setBootLoaderText('بارکردنی داتای ناوخۆیی...');
+  const hasCache = await loadLocalCache();
   if(!hasCache){
     createFreshDb();
   }
   initSupabaseClient();
-  // ئەگەر داتای cloud هەبێت، نوێترین SQLite دابەزێنە
-  try{
-    if(supabaseClient){
-      setBootLoaderText('هاوکاتکردن لەگەڵ cloud...');
-      const remoteLoaded = await downloadFromSupabase();
-      if(!remoteLoaded && hasCache){ await uploadToSupabase(); }
-      else if(!remoteLoaded && !hasCache){ await uploadToSupabase(); }
-    }
-  }catch(e){ console.warn('silent Supabase sync failed', e); }
+  refreshSyncStatusUI();
 
-  // دوای بارکردنی نوێترین داتا، ئەگەر پێشتر چوونەژوورەوە کرابوو خۆکارانە بگەڕێوە
-  // (پێویست بە دووبارە داخڵبوون ناکات لە هەر Refresh-ێک)
   const restored = tryRestoreSession();
   if(!restored){
     document.getElementById('loginScreen').style.display='flex';
@@ -2799,16 +2932,23 @@ function hideBootLoader(){
     if(e.key==='Enter') confirmDeleteEmployee();
   });
 
-  // کاتێک ئەپەکە دەگەڕێتەوە سەر شاشە (گۆڕین لەنێوان ئەپەکان لە مۆبایل، یان گەڕانەوە بۆ تاب)
-  // بپشکنە ئایا داتای نوێتر لە ئامێرێکی تر هاتووەتە cloud، ئەگەر بەڵێ خۆکارانە بیهێنە
   document.addEventListener('visibilitychange', ()=>{
-    if(document.visibilityState==='visible' && currentUser){
-      pullIfRemoteNewer(false);
+    if(document.visibilityState==='visible'){
+      syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
     }
   });
   window.addEventListener('focus', ()=>{
-    if(currentUser) pullIfRemoteNewer(false);
+    syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
   });
+  window.addEventListener('online', ()=>{
+    showToast('ئینتەرنێت گەڕایەوە — داتابەیس تازە دەکرێتەوە');
+    syncWhenOnline(false).then(ok=>{ if(ok) refreshUIAfterSync(); });
+  });
+  window.addEventListener('offline', ()=>{
+    setSyncStatus(localDirty ? 'pending' : 'offline');
+  });
+
+  syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
 })();
 </script>
 
