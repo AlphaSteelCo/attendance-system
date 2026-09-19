@@ -1,0 +1,61 @@
+/* Service Worker — سیستەمی ئامادەبوونی کارمەندان
+   ئەرک: کاشکردنی فایلە سەرەکییەکانی ئەپەکە بۆ ئەوەی بەبێ ئینتەرنێت بکرێتەوە.
+   تێبینی: ئەم فایلە تەنها فایلەکانی خودی ئەپ کاش دەکات (HTML/CSS/JS ناوخۆیی).
+   داتای کارمەندان و ئامادەبوون خۆی لە IndexedDB/SQLite ناوخۆیی ئەپەکەدا هەڵدەگیرێت
+   و کاتێک ئینتەرنێت هەبێت خۆکارانە لەگەڵ Supabase هاوکات دەبێتەوە (لە index.html دا). */
+
+const CACHE_NAME = 'attendance-app-v1';
+const APP_SHELL = [
+  './',
+  './index.html',
+  './manifest.json'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      // هەریەکە بە تەنها کاش بکە، ئەگەر فایلێک نەدۆزرایەوە هەڵە مەدە هەموو ئینستۆڵکردنەکە
+      return Promise.all(
+        APP_SHELL.map((url) =>
+          cache.add(url).catch((err) => console.warn('cache add failed:', url, err))
+        )
+      );
+    }).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  // تەنها داواکارییەکانی هەمان سایت کاش بکە (نەک داواکارییەکانی Supabase API)
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      const networkFetch = fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const resClone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+          }
+          return res;
+        })
+        .catch(() => cached);
+      // ئەگەر پێشتر لە کاشدا هەبوو، خێرا نیشانی بدە و لە پشتەوە تازەی بکە (کاش-یەکەم)
+      // ئەگەر نەبوو، چاوەڕێی تۆڕ بکە
+      return cached || networkFetch;
+    })
+  );
+});
