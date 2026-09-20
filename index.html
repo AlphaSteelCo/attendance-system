@@ -617,19 +617,21 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 <!-- ===== Day Modal ===== -->
 <div class="overlay" id="dayModal">
   <div class="modal">
-    <div class="modalHead">
-      <h3 id="dayModalTitle">ڕۆژی --</h3>
-      <button class="closeX" onclick="closeModal(&#39;dayModal&#39;)">✕</button>
-    </div>
-    <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
-    <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <input class="miniInput" id="dayEmpSearch" style="flex:1;margin-bottom:0;" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
-      <select id="dayEmpShiftFilter" class="selectBox" onchange="filterDayEmployees()">
-        <option value="all">هەموو</option>
-        <option value="ڕۆژ">🌞 ڕۆژ</option>
-        <option value="شەو">🌙 شەو</option>
-      </select>
+    <div class="stickyModalTop">
+      <div class="modalHead">
+        <h3 id="dayModalTitle">ڕۆژی --</h3>
+        <button class="closeX" onclick="closeModal(&#39;dayModal&#39;)">✕</button>
+      </div>
+      <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
+      <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
+      <div style="display:flex;gap:8px;">
+        <input class="miniInput" id="dayEmpSearch" style="flex:1;margin-bottom:0;" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
+        <select id="dayEmpShiftFilter" class="selectBox" onchange="filterDayEmployees()">
+          <option value="all">هەموو</option>
+          <option value="ڕۆژ">🌞 ڕۆژ</option>
+          <option value="شەو">🌙 شەو</option>
+        </select>
+      </div>
     </div>
     <div id="dayEmployeesList"></div>
     <div style="display:flex;gap:8px;margin-top:6px;">
