@@ -1767,6 +1767,25 @@ function saveEmployeeEdit(){
     return;
   }
   db.run(`UPDATE employees SET name=?, emp_code=?, dept_id=?, shift_type=?, hours=? WHERE id=?`,[name,code,newDeptId,shiftType,hours,editingEmpId]);
+
+  // ئەگەر کارمەند گوازرایەوە بۆ بەشی "استیقالە"، ئەو ڕۆژە بە نەهاتوو هەژماردەکرێت
+  if(newDeptId !== editingEmpDeptId){
+    const newDeptNameRes = db.exec(`SELECT name FROM departments WHERE id=${newDeptId}`);
+    const newDeptName = (newDeptNameRes.length && newDeptNameRes[0].values.length) ? String(newDeptNameRes[0].values[0][0]||'') : '';
+    const trimmedName = newDeptName.trim();
+    const resignationDeptNames = ['استیقالە','استیقالة','ئیستیقالە'];
+    const isResignationDept = resignationDeptNames.includes(trimmedName);
+    if(isResignationDept){
+      const now = new Date();
+      const y = now.getFullYear(), m = now.getMonth()+1, d = now.getDate();
+      db.run(`
+        INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time)
+        VALUES (?,?,?,?,?,NULL,NULL)
+        ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=NULL, end_time=NULL
+      `,[y,m,d,editingEmpId,'absent']);
+    }
+  }
+
   persistLocal();
   closeModal('editEmployeeModal');
   refreshAfterEmployeeChange();
