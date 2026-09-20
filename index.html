@@ -432,6 +432,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
   .miniInput{padding:9px 10px;border-radius:8px;border:1.5px solid var(--line);font-size:14px;width:100%;margin-bottom:8px;}
   .stickySearch{position:sticky;top:0;background:#fff;z-index:5;padding-top:2px;}
+  .stickyModalTop{position:sticky;top:0;background:#fff;z-index:6;padding-bottom:8px;margin-bottom:6px;}
+  .stickyModalTop .stickySearch{position:static;padding-top:0;z-index:auto;}
 
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
   .badge-ok{background:var(--ok-bg);color:var(--ok);}
@@ -634,11 +636,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 <!-- ===== All Departments Modal (admin) ===== -->
 <div class="overlay" id="allDeptsModal">
   <div class="modal">
-    <div class="modalHead">
-      <h3>هەموو بەشەکان <span id="allDeptsTotalCount" class="muted" style="font-size:13px;font-weight:normal;"></span></h3>
-      <button class="closeX" onclick="closeModal(&#39;allDeptsModal&#39;)">✕</button>
+    <div class="stickyModalTop">
+      <div class="modalHead">
+        <h3>هەموو بەشەکان <span id="allDeptsTotalCount" class="muted" style="font-size:13px;font-weight:normal;"></span></h3>
+        <button class="closeX" onclick="closeModal(&#39;allDeptsModal&#39;)">✕</button>
+      </div>
+      <input class="miniInput stickySearch" id="allDeptsSearch" placeholder="🔍 گەڕان بە ناو یان کۆد لە هەموو بەشەکان..." oninput="renderAllDepartments()">
     </div>
-    <input class="miniInput stickySearch" id="allDeptsSearch" placeholder="🔍 گەڕان بە ناو یان کۆد لە هەموو بەشەکان..." oninput="renderAllDepartments()">
     <div id="allDeptsList"></div>
   </div>
 </div>
@@ -646,15 +650,17 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 <!-- ===== Department Detail Modal (admin): employees roster ===== -->
 <div class="overlay" id="deptDetailModal">
   <div class="modal">
-    <div class="modalHead">
-      <h3 id="deptDetailTitle">بەش</h3>
-      <button class="closeX" onclick="closeModal(&#39;deptDetailModal&#39;)">✕</button>
+    <div class="stickyModalTop">
+      <div class="modalHead">
+        <h3 id="deptDetailTitle">بەش</h3>
+        <button class="closeX" onclick="closeModal(&#39;deptDetailModal&#39;)">✕</button>
+      </div>
+      <div class="rowbetween" style="margin-bottom:10px;" id="deptDetailAddBtns">
+        <button class="btn btn-outline btn-sm" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
+        <button class="btn btn-outline btn-sm" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
+      </div>
+      <input class="miniInput stickySearch" id="deptDetailSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderDeptDetailEmployees()">
     </div>
-    <div class="rowbetween" style="margin-bottom:10px;" id="deptDetailAddBtns">
-      <button class="btn btn-outline btn-sm" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
-      <button class="btn btn-outline btn-sm" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
-    </div>
-    <input class="miniInput stickySearch" id="deptDetailSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderDeptDetailEmployees()">
     <div id="deptDetailEmployeesList"></div>
   </div>
 </div>
