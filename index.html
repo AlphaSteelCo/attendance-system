@@ -565,7 +565,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div class="card" id="employeesCard">
       <div class="rowbetween" style="margin-bottom:10px;">
         <div class="sectionTitle" style="margin:0;">👥 کارمەندانی ئەم بەشە</div>
-        <button class="btn btn-outline btn-sm" id="addEmployeeBtn" onclick="openAddEmployeeModal()">➕ زیادکردن</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="employeesShiftFilter" class="selectBox" onchange="renderEmployeesList()">
+            <option value="all">هەموو</option>
+            <option value="ڕۆژ">🌞 ڕۆژ</option>
+            <option value="شەو">🌙 شەو</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="addEmployeeBtn" onclick="openAddEmployeeModal()">➕ زیادکردن</button>
+        </div>
       </div>
       <input class="miniInput stickySearch" id="employeesListSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderEmployeesList()">
       <div id="employeesList"></div>
@@ -1372,6 +1379,8 @@ function fillDeptPicker(){
 }
 function onDeptChange(){
   currentDeptId = parseInt(document.getElementById('deptPicker').value);
+  const shiftFilterSel = document.getElementById('employeesShiftFilter');
+  if(shiftFilterSel) shiftFilterSel.value = 'all';
   renderCalendar();
   renderShiftsSummary();
   renderEmployeesList();
@@ -1635,14 +1644,23 @@ function renderEmployeesList(){
   wrap.innerHTML='';
   if(!currentDeptId){ wrap.innerHTML='<div class="muted">-</div>'; return; }
   const term = (document.getElementById('employeesListSearch')?.value || '').trim();
+  const shiftFilter = document.getElementById('employeesShiftFilter')?.value || 'all';
+  const shiftFilterSql = (shiftFilter && shiftFilter!=='all') ? 'AND shift_type = ?' : '';
   let res;
   if(term){
+    const params = [currentDeptId, `%${term}%`, `%${term}%`];
+    if(shiftFilterSql) params.push(shiftFilter);
     res = db.exec(
-      `SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=? AND (name LIKE ? OR emp_code LIKE ?) ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`,
-      [currentDeptId, `%${term}%`, `%${term}%`]
+      `SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=? AND (name LIKE ? OR emp_code LIKE ?) ${shiftFilterSql} ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`,
+      params
     );
   } else {
-    res = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${currentDeptId} ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
+    const params = [currentDeptId];
+    if(shiftFilterSql) params.push(shiftFilter);
+    res = db.exec(
+      `SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=? ${shiftFilterSql} ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`,
+      params
+    );
   }
   if(!res.length || !res[0].values.length){
     wrap.innerHTML = `<div class="muted">${term ? 'هیچ کارمەندێک بەم گەڕانە نەدۆزرایەوە' : 'هیچ کارمەندێک زیاد نەکراوە بۆ ئەم بەشە'}</div>`;
