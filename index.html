@@ -404,6 +404,11 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dayLockNote{background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
   .lateTimeInline{display:none;align-items:center;gap:4px;flex-shrink:0;}
   .lateTimeInline.show{display:flex;}
+  .noteBtn{padding:7px 8px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;}
+  .noteBtn.has-note{background:#fff7d6;border-color:#dbd80f;color:#8a7c00;}
+  .noteBox{margin-top:6px;display:none;}
+  .noteBox.show{display:block;}
+  .noteBox textarea{width:100%;min-height:52px;border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;}
   .lateTimeField{position:relative;}
   .lateTimeField input{width:58px;padding:6px 4px;border-radius:7px;border:1.5px solid #c9760a;font-size:12.5px;text-align:center;background:#fffaf2;color:#a25f08;font-weight:700;}
   .lateTimeSep{color:var(--muted);font-size:11px;}
@@ -999,7 +1004,7 @@ function createFreshDb(){
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       year INTEGER, month INTEGER, day INTEGER,
       employee_id INTEGER, status TEXT,
-      start_time TEXT, end_time TEXT,
+      start_time TEXT, end_time TEXT, note TEXT,
       UNIQUE(year,month,day,employee_id)
     );
     CREATE TABLE limited_admins (
@@ -1049,6 +1054,9 @@ function ensureSchema(){
   }
   if(!eaColNames.includes('end_time')){
     db.run(`ALTER TABLE employee_attendance ADD COLUMN end_time TEXT`);
+  }
+  if(!eaColNames.includes('note')){
+    db.run(`ALTER TABLE employee_attendance ADD COLUMN note TEXT`);
   }
   // بۆ داتابەیسی کۆن: خشتەکانی ئەدمینی سنووردار
   db.run(`CREATE TABLE IF NOT EXISTS limited_admins (
@@ -2049,6 +2057,7 @@ function processBulkAddEmployees(){
    ====================================================================== */
 let dayAttendanceState = {};
 let dayLateTimes = {};
+let dayNoteText = {};
 
 function openDayModal(day){
   selDay = day;
@@ -2058,6 +2067,7 @@ function openDayModal(day){
   listWrap.innerHTML='';
   dayAttendanceState = {};
   dayLateTimes = {};
+  dayNoteText = {};
   const searchBox = document.getElementById('dayEmpSearch');
   if(searchBox) searchBox.value='';
   const shiftFilterBox = document.getElementById('dayEmpShiftFilter');
@@ -2089,18 +2099,20 @@ function openDayModal(day){
     return;
   }
 
-  const statusRes = db.exec(`SELECT employee_id,status,start_time,end_time FROM employee_attendance WHERE year=${selYear} AND month=${selMonth+1} AND day=${day}`);
+  const statusRes = db.exec(`SELECT employee_id,status,start_time,end_time,note FROM employee_attendance WHERE year=${selYear} AND month=${selMonth+1} AND day=${day}`);
   const statusMap = {};
   if(statusRes.length){
-    statusRes[0].values.forEach(([eid,status,startTime,endTime])=>{
+    statusRes[0].values.forEach(([eid,status,startTime,endTime,note])=>{
       statusMap[eid]=status;
       if(status==='late') dayLateTimes[eid] = {start:startTime||'', end:endTime||''};
+      dayNoteText[eid] = note||'';
     });
   }
 
   empRes[0].values.forEach(([eid,name,code,shiftType,hours])=>{
     dayAttendanceState[eid] = statusMap[eid] || 'present';
     if(!dayLateTimes[eid]) dayLateTimes[eid] = {start:'', end:''};
+    if(dayNoteText[eid]===undefined) dayNoteText[eid] = '';
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const extra = [code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?hours:null].filter(Boolean).join(' • ');
     const row=document.createElement('div');
@@ -2113,6 +2125,7 @@ function openDayModal(day){
     const codeBadge = code ? `<span class="miniBadge">${escapeHtml(code)}</span>` : '';
     const shiftBadge = shiftType ? `<span class="miniBadge">${shiftIcon} ${escapeHtml(shiftType)}</span>` : '';
     const hoursBadge = hours ? `<span class="miniBadge">🕐 ${escapeHtml(hours)}</span>` : '';
+    const hasNote = !!(dayNoteText[eid] && dayNoteText[eid].trim());
     row.innerHTML = `
       <div class="empInfoInline">
         <b class="empNameInline">${escapeHtml(name)}</b>
@@ -2135,12 +2148,16 @@ function openDayModal(day){
               oninput="onLateTimeInput(${eid},'end',this)" onfocus="onLateTimeInput(${eid},'end',this)">
             <div class="timeSuggest" id="lateEndSuggest_${eid}"></div>
           </div>
+          <button type="button" class="noteBtn${hasNote?' has-note':''}" id="noteBtn_${eid}" title="نۆت" onclick="toggleNoteBox(${eid})">✏️</button>
         </div>
         <div class="empToggleBtns">
           <button type="button" class="empToggleBtn" ${disabledAttr} title="ئامادە" onclick="setEmpDayStatus(${eid},'present')">✅</button>
           <button type="button" class="empToggleBtn" ${disabledAttr} title="درەنگ" onclick="setEmpDayStatus(${eid},'late')">🕒</button>
           <button type="button" class="empToggleBtn" ${disabledAttr} title="نەهاتوو" onclick="setEmpDayStatus(${eid},'absent')">❌</button>
         </div>
+      </div>
+      <div class="noteBox${hasNote?' show':''}" id="noteBox_${eid}">
+        <textarea id="noteText_${eid}" ${disabledAttr} placeholder="نۆت... ڕوونکردنەوەیەک بۆ چەند وشەیەک" oninput="onNoteInput(${eid},this)">${escapeHtml(dayNoteText[eid]||'')}</textarea>
       </div>`;
     listWrap.appendChild(row);
 
@@ -2181,6 +2198,22 @@ function applyEmpRowStyle(eid){
   row.classList.toggle('needsSelection', !dayAttendanceState[eid]);
   const lateBox = document.getElementById(`lateTimeBox_${eid}`);
   if(lateBox) lateBox.classList.toggle('show', dayAttendanceState[eid]==='late');
+}
+
+function toggleNoteBox(eid){
+  const box = document.getElementById(`noteBox_${eid}`);
+  if(!box) return;
+  const willShow = !box.classList.contains('show');
+  box.classList.toggle('show', willShow);
+  if(willShow){
+    const ta = document.getElementById(`noteText_${eid}`);
+    if(ta) ta.focus();
+  }
+}
+function onNoteInput(eid, textareaEl){
+  dayNoteText[eid] = textareaEl.value;
+  const btn = document.getElementById(`noteBtn_${eid}`);
+  if(btn) btn.classList.toggle('has-note', !!(textareaEl.value && textareaEl.value.trim()));
 }
 
 /* بژاردەی خێرای کات: تایپکردنی ژمارەی سەعات (بۆ نموونە 7) کاتەکانی چارەکەکانی دەردەخات: 07:00, 07:15, 07:30, 07:45 */
@@ -2242,11 +2275,12 @@ function saveDayData(){
     }
     const startTime = status==='late' ? (dayLateTimes[eid]?.start || null) : null;
     const endTime = status==='late' ? (dayLateTimes[eid]?.end || null) : null;
+    const noteVal = (dayNoteText[eid] && dayNoteText[eid].trim()) ? dayNoteText[eid].trim() : null;
     db.run(`
-      INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time)
-      VALUES (?,?,?,?,?,?,?)
-      ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=excluded.start_time, end_time=excluded.end_time
-    `,[selYear, selMonth+1, selDay, eid, status, startTime, endTime]);
+      INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time,note)
+      VALUES (?,?,?,?,?,?,?,?)
+      ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=excluded.start_time, end_time=excluded.end_time, note=excluded.note
+    `,[selYear, selMonth+1, selDay, eid, status, startTime, endTime, noteVal]);
   });
   persistLocal();
   closeModal('dayModal');
