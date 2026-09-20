@@ -623,7 +623,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
     <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
-    <input class="miniInput stickySearch" id="dayEmpSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input class="miniInput" id="dayEmpSearch" style="flex:1;margin-bottom:0;" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="filterDayEmployees()">
+      <select id="dayEmpShiftFilter" class="selectBox" onchange="filterDayEmployees()">
+        <option value="all">هەموو</option>
+        <option value="ڕۆژ">🌞 ڕۆژ</option>
+        <option value="شەو">🌙 شەو</option>
+      </select>
+    </div>
     <div id="dayEmployeesList"></div>
     <div style="display:flex;gap:8px;margin-top:6px;">
       <button class="btn btn-primary" style="flex:1;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
@@ -2048,6 +2055,8 @@ function openDayModal(day){
   dayLateTimes = {};
   const searchBox = document.getElementById('dayEmpSearch');
   if(searchBox) searchBox.value='';
+  const shiftFilterBox = document.getElementById('dayEmpShiftFilter');
+  if(shiftFilterBox) shiftFilterBox.value='all';
 
   const now = new Date();
   const selDateObj = new Date(selYear, selMonth, day);
@@ -2094,6 +2103,7 @@ function openDayModal(day){
     row.id = `empDayRow_${eid}`;
     row.dataset.name = (name||'').toLowerCase();
     row.dataset.code = (code||'').toLowerCase();
+    row.dataset.shift = shiftType || '';
     const disabledAttr = dayIsEditable ? '' : 'disabled';
     const codeBadge = code ? `<span class="miniBadge">${escapeHtml(code)}</span>` : '';
     const shiftBadge = shiftType ? `<span class="miniBadge">${shiftIcon} ${escapeHtml(shiftType)}</span>` : '';
@@ -2137,10 +2147,12 @@ function openDayModal(day){
 
 function filterDayEmployees(){
   const term = (document.getElementById('dayEmpSearch')?.value || '').trim().toLowerCase();
+  const shiftFilter = document.getElementById('dayEmpShiftFilter')?.value || 'all';
   const rows = document.querySelectorAll('#dayEmployeesList .empDayRow');
   rows.forEach(row=>{
-    const match = !term || row.dataset.name.includes(term) || row.dataset.code.includes(term);
-    row.style.display = match ? '' : 'none';
+    const matchTerm = !term || row.dataset.name.includes(term) || row.dataset.code.includes(term);
+    const matchShift = shiftFilter==='all' || row.dataset.shift===shiftFilter;
+    row.style.display = (matchTerm && matchShift) ? '' : 'none';
   });
 }
 
