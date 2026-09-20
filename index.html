@@ -628,7 +628,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 <div class="overlay" id="allDeptsModal">
   <div class="modal">
     <div class="modalHead">
-      <h3>هەموو بەشەکان</h3>
+      <h3>هەموو بەشەکان <span id="allDeptsTotalCount" class="muted" style="font-size:13px;font-weight:normal;"></span></h3>
       <button class="closeX" onclick="closeModal(&#39;allDeptsModal&#39;)">✕</button>
     </div>
     <input class="miniInput stickySearch" id="allDeptsSearch" placeholder="🔍 گەڕان بە ناو یان کۆد لە هەموو بەشەکان..." oninput="renderAllDepartments()">
@@ -1818,6 +1818,14 @@ function renderAllDepartments(){
   const term = (document.getElementById('allDeptsSearch')?.value || '').trim();
   const visibleIds = getVisibleDeptIds();
   const deptFilterSql = visibleIds!==null ? (visibleIds.length ? `AND d.id IN (${visibleIds.join(',')})` : 'AND 0') : '';
+
+  const totalCountEl = document.getElementById('allDeptsTotalCount');
+  if(totalCountEl){
+    const totalWhereSql = visibleIds!==null ? (visibleIds.length ? `WHERE dept_id IN (${visibleIds.join(',')})` : 'WHERE 0') : '';
+    const totalRes = db.exec(`SELECT COUNT(*) FROM employees ${totalWhereSql}`);
+    const totalCount = totalRes.length ? totalRes[0].values[0][0] : 0;
+    totalCountEl.textContent = `(کۆی گشتی: ${totalCount} کارمەند)`;
+  }
 
   if(term){
     // گەڕان بە ناو یان کۆد بۆ کارمەند لەنێو بەشە دیاریکراوەکان
