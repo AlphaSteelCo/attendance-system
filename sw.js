@@ -4,7 +4,7 @@
    داتای کارمەندان و ئامادەبوون خۆی لە IndexedDB/SQLite ناوخۆیی ئەپەکەدا هەڵدەگیرێت
    و کاتێک ئینتەرنێت هەبێت خۆکارانە لەگەڵ Supabase هاوکات دەبێتەوە (لە index.html دا). */
 
-const CACHE_NAME = 'attendance-app-v1';
+const CACHE_NAME = 'attendance-app-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -44,6 +44,26 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  const isAppPage = req.mode === 'navigate' || req.destination === 'document' ||
+    url.pathname.endsWith('/') || url.pathname.endsWith('index.html');
+
+  if (isAppPage) {
+    // تۆڕ-یەکەم: هەمیشە هەوڵ بدە نوێترین وەشان بهێنیت، تەنها کاتێک ئۆفلاینیت کاشەکە بەکاربهێنە
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const resClone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // فایلە جێگیرەکان (ئایکۆن، مانیفێست): کاش-یەکەم، لەگەڵ تازەکردنەوەی کاشی لە پشتەوە
   event.respondWith(
     caches.match(req).then((cached) => {
       const networkFetch = fetch(req)
@@ -55,8 +75,6 @@ self.addEventListener('fetch', (event) => {
           return res;
         })
         .catch(() => cached);
-      // ئەگەر پێشتر لە کاشدا هەبوو، خێرا نیشانی بدە و لە پشتەوە تازەی بکە (کاش-یەکەم)
-      // ئەگەر نەبوو، چاوەڕێی تۆڕ بکە
       return cached || networkFetch;
     })
   );
