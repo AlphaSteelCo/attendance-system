@@ -438,7 +438,10 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
   .miniInput{padding:9px 10px;border-radius:8px;border:1.5px solid var(--line);font-size:14px;width:100%;margin-bottom:8px;}
   .stickySearch{position:sticky;top:0;background:#fff;z-index:5;padding-top:2px;}
-  .stickyModalTop{position:sticky;top:0;background:#fff;z-index:6;padding-bottom:8px;margin-bottom:6px;transform:translateZ(0);-webkit-transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden;contain:paint;}
+  .stickyModalTop{background:#fff;}
+  .modal.modalFlex{overflow:hidden;display:flex;flex-direction:column;}
+  .modal.modalFlex > .stickyModalTop{margin-bottom:0;padding-bottom:10px;flex:0 0 auto;}
+  .modalScrollList{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto;min-height:0;}
   .stickyModalTop .stickySearch{position:static;padding-top:0;z-index:auto;}
 
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
@@ -624,7 +627,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
 <!-- ===== Day Modal ===== -->
 <div class="overlay" id="dayModal">
-  <div class="modal">
+  <div class="modal modalFlex">
     <div class="stickyModalTop">
       <div class="modalHead">
         <h3 id="dayModalTitle">ڕۆژی --</h3>
@@ -641,7 +644,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         </select>
       </div>
     </div>
-    <div id="dayEmployeesList"></div>
+    <div id="dayEmployeesList" class="modalScrollList"></div>
     <div style="display:flex;gap:8px;margin-top:6px;">
       <button class="btn btn-primary" style="flex:1;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
       <button class="btn" style="flex:1;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن</button>
@@ -652,7 +655,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
 <!-- ===== All Departments Modal (admin) ===== -->
 <div class="overlay" id="allDeptsModal">
-  <div class="modal">
+  <div class="modal modalFlex">
     <div class="stickyModalTop">
       <div class="modalHead">
         <h3>هەموو بەشەکان <span id="allDeptsTotalCount" class="muted" style="font-size:13px;font-weight:normal;"></span></h3>
@@ -660,13 +663,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       </div>
       <input class="miniInput stickySearch" id="allDeptsSearch" placeholder="🔍 گەڕان بە ناو یان کۆد لە هەموو بەشەکان..." oninput="renderAllDepartments()">
     </div>
-    <div id="allDeptsList"></div>
+    <div id="allDeptsList" class="modalScrollList"></div>
   </div>
 </div>
 
 <!-- ===== Department Detail Modal (admin): employees roster ===== -->
 <div class="overlay" id="deptDetailModal">
-  <div class="modal">
+  <div class="modal modalFlex">
     <div class="stickyModalTop">
       <div class="modalHead">
         <h3 id="deptDetailTitle">بەش</h3>
@@ -678,7 +681,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       </div>
       <input class="miniInput stickySearch" id="deptDetailSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderDeptDetailEmployees()">
     </div>
-    <div id="deptDetailEmployeesList"></div>
+    <div id="deptDetailEmployeesList" class="modalScrollList"></div>
   </div>
 </div>
 
