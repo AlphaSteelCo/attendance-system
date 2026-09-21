@@ -3064,6 +3064,14 @@ function hideBootLoader(){
     setSyncStatus(localDirty ? 'pending' : 'offline');
   });
 
+  // هەموو 45 چرکە خۆکارانە پشکنینی داتای نوێ بکە، تەنانەت ئەگەر لاپەڕەکە کراوە بمێنێتەوە و
+  // فۆکەس/تابی نوێی نەکرێتەوە (بۆ نموونە: سەرپەرشتیارێک لە ئامێرێکی تر داتا زیاد دەکات)
+  setInterval(()=>{
+    const dayModalOpen = document.getElementById('dayModal')?.classList.contains('show');
+    if(dayModalOpen) return; // دانانی چاوەڕوان، بۆ ئەوەی کاتێک خۆت تۆمار دەکەیت گۆڕانکارییەکەت نەسڕدرێتەوە
+    syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
+  }, 45000);
+
   syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
 })();
 </script>
