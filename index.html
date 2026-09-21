@@ -438,7 +438,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
   .miniInput{padding:9px 10px;border-radius:8px;border:1.5px solid var(--line);font-size:14px;width:100%;margin-bottom:8px;}
   .stickySearch{position:sticky;top:0;background:#fff;z-index:5;padding-top:2px;}
-  .stickyModalTop{position:sticky;top:0;background:#fff;z-index:6;padding-bottom:8px;margin-bottom:6px;}
+  .stickyModalTop{position:sticky;top:0;background:#fff;z-index:6;padding-bottom:8px;margin-bottom:6px;transform:translateZ(0);-webkit-transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden;contain:paint;}
   .stickyModalTop .stickySearch{position:static;padding-top:0;z-index:auto;}
 
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
