@@ -763,7 +763,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <option value="شەو">🌙 شەو</option>
     </select>
     <label class="muted" style="font-size:12px;">کاتی کارکردن (بەپێی عەقدی کارمەند)</label>
-    <input class="miniInput" id="newEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17" style="margin-top:6px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','07:00-19:00')">07:00 - 19:00</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','07:30-16:30')">07:30 - 16:30</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','07:00-16:00')">07:00 - 16:00</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','07:00-17:00')">07:00 - 17:00</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','19:00-07:00 N')">19:00 - 07:00 N</button>
+    </div>
+    <input class="miniInput" id="newEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17، یان خۆت بینووسە" style="margin-top:2px;">
     <button class="btn btn-primary" style="width:100%;" onclick="addEmployeeConfirm()">💾 زیادکردن</button>
   </div>
 </div>
@@ -783,7 +790,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <option value="شەو">🌙 شەو</option>
     </select>
     <label class="muted" style="font-size:12px;">کاتی کارکردن (بەپێی عەقدی کارمەند)</label>
-    <input class="miniInput" id="editEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17" style="margin-top:6px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('editEmpHours','07:00-19:00')">07:00 - 19:00</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('editEmpHours','07:30-16:30')">07:30 - 16:30</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('editEmpHours','07:00-16:00')">07:00 - 16:00</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('editEmpHours','07:00-17:00')">07:00 - 17:00</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('editEmpHours','19:00-07:00 N')">19:00 - 07:00 N</button>
+    </div>
+    <input class="miniInput" id="editEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17، یان خۆت بینووسە" style="margin-top:2px;">
     <div id="employeeTransferWrap" style="display:none;">
       <label class="muted" style="font-size:12px;">گواستنەوە بۆ بەشێکی تر</label>
       <select id="editEmpDept" class="selectBox" style="width:100%;margin:6px 0 10px;"></select>
@@ -2664,6 +2678,10 @@ function renderShiftsEditList(){
       <div class="btns"><button class="btn btn-danger btn-sm" onclick="deleteShift(${id})">🗑️</button></div>`;
     wrap.appendChild(div);
   });
+}
+function fillHoursField(inputId, value){
+  const el = document.getElementById(inputId);
+  if(el) el.value = value;
 }
 function fillShiftPreset(name,hours){
   document.getElementById('newShiftName').value = name;
