@@ -254,6 +254,19 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     background:linear-gradient(160deg,#fbfbe8,var(--bg));transition:opacity .4s ease, visibility .4s ease;
   }
   #bootLoader.hide{opacity:0;visibility:hidden;pointer-events:none;}
+  /* ---------- Offline Required Overlay ---------- */
+  #offlineOverlay{
+    position:fixed;inset:0;z-index:10000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:linear-gradient(160deg,#fbfbe8,var(--bg));text-align:center;padding:24px;
+  }
+  #offlineOverlay.show{display:flex;}
+  .offlineIcon{font-size:52px;}
+  .offlineTitle{font-size:19px;font-weight:800;color:var(--ink);}
+  .offlineText{font-size:14.5px;color:#555;max-width:340px;line-height:1.8;}
+  .offlineRetryBtn{
+    margin-top:6px;padding:11px 26px;border:none;border-radius:10px;background:var(--brand);
+    color:#222;font-weight:700;font-size:14.5px;box-shadow:0 6px 18px rgba(0,0,0,.1);
+  }
   .bootLogo{
     width:64px;height:64px;border-radius:16px;background:var(--brand);
     display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;
@@ -492,6 +505,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   <div class="bootLogo">📋</div>
   <div class="bootSpinner"></div>
   <div class="bootText" id="bootLoaderText">چاوەڕوان بە،سیستەم بارددەکرێت...</div>
+</div>
+
+<!-- ===================== OFFLINE REQUIRED ===================== -->
+<div id="offlineOverlay">
+  <div class="offlineIcon">📶</div>
+  <div class="offlineTitle">ئینتەرنێتت نییە</div>
+  <div class="offlineText">ئەم سیستەمە تەنها بە ئینتەرنێت کار دەکات. تکایە وای‌فای یان داتای مۆبایل کارا بکە و دووبارە هەوڵ بدەوە.</div>
+  <button class="offlineRetryBtn" onclick="retryOnlineCheck()">هەوڵدانەوە</button>
 </div>
 
 <!-- ===================== LOGIN ===================== -->
@@ -1137,6 +1158,21 @@ function downloadDbBackup(){
 
 function isOnline(){
   return navigator.onLine !== false;
+}
+function showOfflineOverlay(){
+  const el = document.getElementById('offlineOverlay');
+  if(el) el.classList.add('show');
+}
+function hideOfflineOverlay(){
+  const el = document.getElementById('offlineOverlay');
+  if(el) el.classList.remove('show');
+}
+function retryOnlineCheck(){
+  if(isOnline()){
+    location.reload();
+  }else{
+    showToast('هێشتا ئینتەرنێت نییە، تکایە وای‌فای یان داتای مۆبایل چالاک بکە');
+  }
 }
 function markLocalDirty(){
   localDirty = true;
@@ -3061,6 +3097,12 @@ function hideBootLoader(){
 }
 
 (async function boot(){
+  if(!isOnline()){
+    hideBootLoader();
+    showOfflineOverlay();
+    window.addEventListener('online', ()=> location.reload(), {once:true});
+    return;
+  }
   try{
     await initSql();
   }catch(e){
@@ -3071,12 +3113,27 @@ function hideBootLoader(){
     if(errEl) errEl.textContent = 'هەڵە ڕوویدا لە بارکردنی سیستەم. تکایە لاپەڕەکە دووبارە بار بکەرەوە (Refresh). ئەگەر دووبارە بووەوە، هۆکارەکە دەکرێت لە وێبگەڕەکەت یان کاشی زۆر کۆن بێت.';
     return;
   }
-  setBootLoaderText('بارکردنی داتای ناوخۆیی...');
-  const hasCache = await loadLocalCache();
-  if(!hasCache){
-    createFreshDb();
-  }
+  setBootLoaderText('پەیوەستبوون بە داتابەیسی ئۆنڵاین...');
   initSupabaseClient();
+  if(!supabaseClient){
+    hideBootLoader();
+    showOfflineOverlay();
+    document.querySelector('#offlineOverlay .offlineText').textContent = 'نەتوانرا پەیوەندی بە داتابەیسی ئۆنڵاین بکرێت. تکایە وای‌فای یان داتای مۆبایل بپشکنە و دووبارە هەوڵ بدەوە.';
+    return;
+  }
+  let loaded = await downloadFromSupabase();
+  if(!loaded){
+    // ئەگەر هیچ داتایەک لە داتابەیسی ئۆنڵاین نەبوو (یەکەم جار بەکارهێنانە)، داتابەیسێکی نوێ دروست بکە و بینێرە
+    createFreshDb();
+    loaded = await uploadToSupabase();
+  }
+  if(!loaded){
+    hideBootLoader();
+    showOfflineOverlay();
+    document.querySelector('#offlineOverlay .offlineText').textContent = 'نەتوانرا داتا لە ئینتەرنێتەوە بهێنرێت. تکایە دڵنیابەرەوە لە پەیوەندی ئینتەرنێتەکەت و دووبارە هەوڵ بدەوە.';
+    window.addEventListener('online', ()=> location.reload(), {once:true});
+    return;
+  }
   refreshSyncStatusUI();
 
   const restored = tryRestoreSession();
@@ -3104,11 +3161,14 @@ function hideBootLoader(){
     syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
   });
   window.addEventListener('online', ()=>{
+    hideOfflineOverlay();
     showToast('ئینتەرنێت گەڕایەوە — داتابەیس تازە دەکرێتەوە');
     syncWhenOnline(false).then(ok=>{ if(ok) refreshUIAfterSync(); });
   });
   window.addEventListener('offline', ()=>{
-    setSyncStatus(localDirty ? 'pending' : 'offline');
+    setSyncStatus('offline');
+    document.querySelector('#offlineOverlay .offlineText').textContent = 'ئەم سیستەمە تەنها بە ئینتەرنێت کار دەکات. تکایە وای‌فای یان داتای مۆبایل کارا بکە و دووبارە هەوڵ بدەوە.';
+    showOfflineOverlay();
   });
 
   // کاتێک کیبۆردی مۆبایل دەکرێتەوە، شاشەی بینراو بچووک دەبێتەوە؛ ئەم بەشە
@@ -3137,13 +3197,15 @@ function hideBootLoader(){
 })();
 </script>
 <script>
-/* تۆمارکردنی Service Worker: ئەپەکە خۆی (نەک تەنها داتاکە) بەبێ ئینتەرنێت دەکرێتەوە.
-   پێویستە فایلی sw.js لەگەڵ index.html لە هەمان فۆڵدەر/سێرڤەر دابنرێت. */
+/* پێشتر لێرەدا Service Worker تۆمار دەکرا بۆ ئەوەی ئەپەکە بەبێ ئینتەرنێت بکرێتەوە.
+   ئێستا سیستەمەکە تەنها بە ئینتەرنێت کار دەکات، بۆیە Service Worker لابرا،
+   تاکو هەمیشە نوێترین وەشانی ئەپ لە سێرڤەرەوە بار بکرێت و کاشی کۆن دژایەتی نەکات.
+   ئەگەر پێشتر Service Worker تۆمارکرابوو لەسەر ئامێری بەکارهێنەر، ئێرە خۆکارانە لایدەبات. */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(err=>{
-      console.warn('Service worker registration failed:', err);
-    });
+    navigator.serviceWorker.getRegistrations().then(regs=>{
+      regs.forEach(reg=> reg.unregister());
+    }).catch(()=>{});
   });
 }
 </script>
