@@ -426,6 +426,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .absDatesWrap{display:flex;flex-wrap:wrap;gap:6px;}
   .absDateChip{background:var(--bad-bg);border:1.5px solid var(--bad);border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;color:var(--bad);white-space:nowrap;cursor:pointer;}
   .absDateChip.late{background:#eef6ee;border-color:#8bb894;color:#4a7c52;}
+  .absDateChip.no-click{cursor:default;}
   .absDateChip:hover{opacity:.8;}
   .numRow{display:flex;gap:8px;}
   .numGroup{flex:1;}
@@ -1546,6 +1547,9 @@ function renderMonthlyReport(){
   daysStmt.free();
 
   const pad2 = n => String(n).padStart(2,'0');
+  const nameList = RESIGNATION_DEPT_NAMES.map(n=>`'${n.replace(/'/g,"''")}'`).join(',');
+  const resignationCheckRes = db.exec(`SELECT 1 FROM departments WHERE id=${currentDeptId} AND name IN (${nameList})`);
+  const isResignationDept = !!(resignationCheckRes.length && resignationCheckRes[0].values.length);
   rows.forEach(row=>{
     const {id,name,emp_code,a} = row;
     const days = daysByEmp[id] || [];
@@ -1555,13 +1559,16 @@ function renderMonthlyReport(){
     const dateChips = days.map(({day,status})=>{
       const dateStr = `${pad2(day)}/${pad2(selMonth+1)}/${selYear}`;
       const lateCls = status==='late' ? ' late' : '';
-      return `<span class="absDateChip${lateCls}" onclick="openDayModal(${day})">📅${dateStr}</span>`;
+      const clickAttr = isResignationDept ? '' : ` onclick="openDayModal(${day})"`;
+      const noClickCls = isResignationDept ? ' no-click' : '';
+      return `<span class="absDateChip${lateCls}${noClickCls}"${clickAttr}>📅${dateStr}</span>`;
     }).join('');
+    const totalLabel = isResignationDept ? 'ڕۆژی استیقالە' : `کۆی ${a||0} ڕۆژ ئامادەنەبووە`;
     card.innerHTML = `
       <div class="absEmpHead">
         <b class="absEmpName">${escapeHtml(name)}</b>
         ${codeChip}
-        <span class="absBadgeTotal">کۆی ${a||0} ڕۆژ ئامادەنەبووە</span>
+        <span class="absBadgeTotal">${totalLabel}</span>
       </div>
       <div class="absDatesWrap">${dateChips}</div>`;
     wrap.appendChild(card);
