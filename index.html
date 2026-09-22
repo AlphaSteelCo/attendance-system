@@ -1307,6 +1307,7 @@ function finishLogin(){
   buildYearPicker();
   buildMonthTabs();
   buildMonthlyPickers();
+  applyResignationDeptTabRule();
   renderCalendar();
   renderShiftsSummary();
   renderEmployeesList();
@@ -1424,10 +1425,26 @@ function fillDeptPicker(){
     currentDeptId = null;
   }
 }
+// بۆ بەشی "استیقالە": تەنها ڕاپۆرتی مانگانە پیشان بدە، تابی ڕۆژانە بشارەوە
+function applyResignationDeptTabRule(){
+  const dailyTabBtn = document.getElementById('mainTabBtn_daily');
+  if(!dailyTabBtn) return;
+  let isResignation = false;
+  if(currentDeptId){
+    const nameList = RESIGNATION_DEPT_NAMES.map(n=>`'${n.replace(/'/g,"''")}'`).join(',');
+    const res = db.exec(`SELECT 1 FROM departments WHERE id=${currentDeptId} AND name IN (${nameList})`);
+    isResignation = !!(res.length && res[0].values.length);
+  }
+  dailyTabBtn.style.display = isResignation ? 'none' : '';
+  if(isResignation){
+    setMainTab('monthly');
+  }
+}
 function onDeptChange(){
   currentDeptId = parseInt(document.getElementById('deptPicker').value);
   const shiftFilterSel = document.getElementById('employeesShiftFilter');
   if(shiftFilterSel) shiftFilterSel.value = 'all';
+  applyResignationDeptTabRule();
   renderCalendar();
   renderShiftsSummary();
   renderEmployeesList();
