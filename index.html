@@ -527,6 +527,47 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <button class="btn btn-primary" onclick="doLogin()">چوونەژوورەوە</button>
     <div id="loginError"></div>
+    <button type="button" id="addHomeBtn" class="btn btn-outline" style="width:100%;margin:10px 0 4px;" onclick="handleAddToHomeClick()">📲 زیادکردنی ئەپ بۆ شاشەی سەرەکی</button>
+    <div id="addHomeManual" style="display:none;text-align:right;margin:0 0 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.9;color:var(--muted);">
+      <b style="color:inherit;">📱 ئایفۆن (Safari):</b><br>
+      ١) کرتە لە دوگمەی هاوبەشکردن (Share ⬆️) بکە کە لە خوارەوەی شاشەکەیە<br>
+      ٢) خوارەوە بڕۆ و «Add to Home Screen» یان «زیادکردن بۆ شاشەی سەرەکی» هەڵبژێرە<br>
+      ٣) کرتە لە «Add / زیادکردن» بکە
+      <br><br>
+      <b style="color:inherit;">🤖 ئەندرۆید (Chrome):</b><br>
+      ئەگەر پەنجەرەی دابەزاندن خۆکار دەرنەکەوت، کرتە لە دوگمەی سێ خاڵ (⋮) بکە و «Add to Home screen» هەڵبژێرە.
+    </div>
+    <script>
+      (function(){
+        var deferredInstallPrompt = null;
+        var addHomeBtn = document.getElementById('addHomeBtn');
+        var addHomeManual = document.getElementById('addHomeManual');
+        var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+        if(isStandalone && addHomeBtn){ addHomeBtn.style.display = 'none'; }
+
+        window.addEventListener('beforeinstallprompt', function(e){
+          e.preventDefault();
+          deferredInstallPrompt = e;
+        });
+
+        window.addEventListener('appinstalled', function(){
+          deferredInstallPrompt = null;
+          if(addHomeBtn) addHomeBtn.style.display = 'none';
+          if(addHomeManual) addHomeManual.style.display = 'none';
+        });
+
+        window.handleAddToHomeClick = function(){
+          if(deferredInstallPrompt){
+            deferredInstallPrompt.prompt();
+            deferredInstallPrompt.userChoice.then(function(){ deferredInstallPrompt = null; });
+            return;
+          }
+          if(addHomeManual){
+            addHomeManual.style.display = (addHomeManual.style.display === 'none' ? 'block' : 'none');
+          }
+        };
+      })();
+    </script>
     <hr class="sep">
   </div>
 </div>
