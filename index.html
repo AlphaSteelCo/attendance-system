@@ -696,6 +696,21 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
 <div class="toast" id="toast"></div>
 
+<!-- ===== Recent Changes List Modal (پیشاندان دوای چوونەژوورەوە) ===== -->
+<div class="overlay" id="changesModal">
+  <div class="modal modalFlex">
+    <div class="stickyModalTop">
+      <div class="modalHead">
+        <h3>گۆڕانکاریە نوێیەکان</h3>
+        <button class="closeX" onclick="closeModal('changesModal')">✕</button>
+      </div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px;">ئەم بەشانە گۆڕانکارییان تێدا کراوە، لەسەریان کرتە بکە بۆ بینین</div>
+    </div>
+    <div id="changesList" class="modalScrollList"></div>
+    <button class="btn btn-outline" style="width:100%;margin-top:10px;" onclick="clearAllChangesAndClose()">هەموو وەک بینراو نیشان بدە</button>
+  </div>
+</div>
+
 <!-- ===== Monthly Absence Detail Modal ===== -->
 <div class="overlay" id="absenceDetailModal">
   <div class="modal">
@@ -1379,6 +1394,59 @@ function refreshDeptChangeBadges(){
 }
 
 /* ======================================================================
+   لیستی گۆڕانکاریە نوێیەکان — پیشاندان وەک modal دوای چوونەژوورەوە
+   ====================================================================== */
+// وەرگرتنی لیستی بەشەکان کە گۆڕانکاریان تێدا هەیە (بەگوێرەی دەسەڵاتی بەکارهێنەر)
+function getChangedDeptsList(){
+  const counts = getDeptChangeCounts();
+  const ids = Object.keys(counts).map(Number).filter(id=>counts[id]>0);
+  if(!ids.length) return [];
+  const visibleIds = getVisibleDeptIds(); // null بۆ سوپەر ئەدمین، لیست بۆ ئەدمینی سنووردار
+  const filteredIds = visibleIds===null ? ids : ids.filter(id=>visibleIds.includes(id));
+  if(!filteredIds.length || !db) return [];
+  const res = db.exec(`SELECT id,name FROM departments WHERE id IN (${filteredIds.join(',')})`);
+  const namesMap = {};
+  if(res.length) res[0].values.forEach(([id,name])=>{ namesMap[id]=name; });
+  return filteredIds
+    .filter(id=>namesMap[id]!=null)
+    .map(id=>({id, name:namesMap[id], count:counts[id]}))
+    .sort((a,b)=> b.count - a.count);
+}
+function renderChangesList(){
+  const wrap = document.getElementById('changesList');
+  if(!wrap) return;
+  const list = getChangedDeptsList();
+  if(!list.length){
+    wrap.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0;">هیچ گۆڕانکاریەکی نوێ نییە</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(d=>`
+    <div class="listItem" style="cursor:pointer;" onclick="goToChangedDept(${d.id})">
+      <div class="info"><b>${escapeHtml(d.name)}</b></div>
+      <span class="fbBadge">${d.count>99?'99+':d.count}</span>
+    </div>
+  `).join('');
+}
+// کرتەکردن لەسەر بەشێک لە لیستەکە: بگەڕێ بۆ ئەو بەشە و modal-ەکە دابخە
+function goToChangedDept(id){
+  closeModal('changesModal');
+  selectDeptOption(id);
+}
+// هەموو گۆڕانکاریەکان وەک بینراو نیشان بدە و modal-ەکە دابخە
+function clearAllChangesAndClose(){
+  saveDeptChangeCounts({});
+  refreshDeptChangeBadges();
+  closeModal('changesModal');
+}
+// دوای چوونەژوورەوە: ئەگەر گۆڕانکاری نوێ هەبوو، لیستەکە خۆکارانە پیشان بدە
+function maybeShowChangesModal(){
+  if(!(currentUser && (currentUser.role==='admin' || currentUser.role==='limited_admin'))) return;
+  if(!getChangedDeptsList().length) return;
+  renderChangesList();
+  openModal('changesModal');
+}
+
+/* ======================================================================
    چوونەژوورەوە
    ====================================================================== */
 async function doLogin(){
@@ -1454,6 +1522,7 @@ function finishLogin(){
   renderEmployeesList();
   renderMonthlyReport();
   refreshSyncStatusUI();
+  maybeShowChangesModal();
 }
 
 // دەسەڵاتی ئەدمینی سنووردار: 'add' | 'edit' | 'delete' — دەسەڵات بۆ هەر بەشێک جیاوازە
