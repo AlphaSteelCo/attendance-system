@@ -1906,7 +1906,7 @@ function addEmployeeConfirm(){
   if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
   db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours) VALUES (?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours]);
   persistLocal();
-  if(targetDeptId !== currentDeptId) bumpDeptChange(targetDeptId);
+  bumpDeptChange(targetDeptId);
   closeModal('addEmployeeModal');
   refreshAfterEmployeeChange();
   debouncedSync();
@@ -1994,8 +1994,8 @@ function saveEmployeeEdit(){
   }
 
   persistLocal();
-  if(editingEmpDeptId !== currentDeptId) bumpDeptChange(editingEmpDeptId);
-  if(newDeptId !== editingEmpDeptId && newDeptId !== currentDeptId) bumpDeptChange(newDeptId);
+  bumpDeptChange(editingEmpDeptId);
+  if(newDeptId !== editingEmpDeptId) bumpDeptChange(newDeptId);
   closeModal('editEmployeeModal');
   refreshAfterEmployeeChange();
   debouncedSync();
@@ -2034,7 +2034,7 @@ function confirmDeleteEmployee(){
   db.run(`DELETE FROM employee_attendance WHERE employee_id=${editingEmpId}`);
   db.run(`DELETE FROM employees WHERE id=${editingEmpId}`);
   persistLocal();
-  if(editingEmpDeptId !== currentDeptId) bumpDeptChange(editingEmpDeptId);
+  bumpDeptChange(editingEmpDeptId);
   closeModal('deleteEmployeeConfirmModal');
   refreshAfterEmployeeChange();
   debouncedSync();
@@ -2230,7 +2230,7 @@ function processBulkAddEmployees(){
     added++;
   });
   persistLocal();
-  if(added>0 && deptDetailId !== currentDeptId) bumpDeptChange(deptDetailId);
+  if(added>0) bumpDeptChange(deptDetailId);
   closeModal('bulkAddEmployeesModal');
   refreshAfterEmployeeChange();
   debouncedSync();
@@ -2468,6 +2468,7 @@ function saveDayData(){
     `,[selYear, selMonth+1, selDay, eid, status, startTime, endTime, noteVal]);
   });
   persistLocal();
+  bumpDeptChange(currentDeptId);
   closeModal('dayModal');
   renderCalendar();
   showToast('پاشەکەوت کرا ✓');
@@ -2865,6 +2866,7 @@ function addShift(){
   if(!name){ showToast('ناوی شەفت پێویستە'); return; }
   db.run(`INSERT INTO shifts (dept_id,name,code,hours) VALUES (?,?,?,?)`,[editingDeptId,name,code,hours]);
   persistLocal();
+  bumpDeptChange(editingDeptId);
   document.getElementById('newShiftName').value='';
   document.getElementById('newShiftCode').value='';
   document.getElementById('newShiftHours').value='';
@@ -2879,6 +2881,7 @@ function deleteShift(id){
   db.run(`DELETE FROM attendance WHERE shift_id=${id}`);
   db.run(`DELETE FROM shifts WHERE id=${id}`);
   persistLocal();
+  bumpDeptChange(editingDeptId);
   renderShiftsEditList();
   renderShiftsSummary();
   renderEmployeesList();
