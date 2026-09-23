@@ -467,6 +467,12 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   /* هەژماردنی گۆڕانکاری وەک شیوەی فەیسبوک، لەتەنیشت ناوی بەشەکە */
   .fbBadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-inline-start:6px;border-radius:999px;background:#e0245e;color:#fff;font-size:11px;font-weight:700;line-height:18px;vertical-align:middle;}
 
+  /* نیشانەی دواین‌جار نوێکردنەوەی داتای بەش، بۆ چاودێریکردنی ئەدمین */
+  .staleTag{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;}
+  .staleTag-green{background:#e6f6ea;color:#1a7f37;}
+  .staleTag-yellow{background:#fff6dd;color:#9a6b00;}
+  .staleTag-red{background:#fde8e8;color:#c0392b;}
+
   /* دروکردی هەڵبژاردنی بەش، بۆ ئەوەی بتوانین بادج بۆ هەر بەشێک نیشان بدەین */
   .deptPickerWrap{position:relative;}
   .deptPickerBtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:4px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:14px;color:var(--ink);text-align:right;}
@@ -1386,11 +1392,50 @@ function deptChangeBadgeHtml(deptId){
   return `<span class="fbBadge">${n>99?'99+':n}</span>`;
 }
 // نوێکردنەوەی نیشانەکان لە دیوی دروکردا (لیستی هەڵبژاردنی بەش، بەڕێوەبردنی بەشەکان، هەموو بەشەکان)
+// دوایین ڕۆژی تۆمارکراوی ئامادەبوون بۆ ئەم بەشە (بۆ چاودێریکردنی ئەدمین، بزانێت سەرپەرشتیار داتای نوێکردووە یان نا)
+function getDeptLastAttendanceDate(deptId){
+  const res = db.exec(`
+    SELECT MAX(year*10000+month*100+day) FROM employee_attendance ea
+    JOIN employees e ON e.id = ea.employee_id
+    WHERE e.dept_id = ${deptId}
+  `);
+  const v = res.length ? res[0].values[0][0] : null;
+  if(v==null) return null;
+  const y = Math.floor(v/10000), m = Math.floor((v%10000)/100), d = v%100;
+  return new Date(y, m-1, d);
+}
+// دروستکردنی نیشانەی ڕەنگاوڕەنگ کە ڕادەگەیەنێت چەند ڕۆژە داتای بەشەکە نوێ نەکراوەتەوە
+function deptStalenessHtml(deptId){
+  const last = getDeptLastAttendanceDate(deptId);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if(!last){
+    return `<span class="staleTag staleTag-red">هیچ داتایەک تۆمار نەکراوە</span>`;
+  }
+  last.setHours(0,0,0,0);
+  const days = Math.round((today - last) / 86400000);
+  if(days<=0) return `<span class="staleTag staleTag-green">ئەمڕۆ نوێکراوەتەوە</span>`;
+  if(days===1) return `<span class="staleTag staleTag-yellow">دوێنێ نوێکراوەتەوە</span>`;
+  return `<span class="staleTag staleTag-red">${days} ڕۆژە نوێ نەکراوەتەوە</span>`;
+}
+
 function refreshDeptChangeBadges(){
   renderDeptPickerDropdown();
   updateDeptPickerLabel();
   if(document.getElementById('deptsModal') && document.getElementById('deptsModal').classList.contains('show')) renderDeptsList();
   if(document.getElementById('allDeptsModal') && document.getElementById('allDeptsModal').classList.contains('show')) renderAllDepartments();
+  updateAppBadge();
+}
+// نیشانەی ژمارە لەسەر ئایکۆنی ئەپ (Badging API) — تەنها کاردەکات ئەگەر بەوێبگەڕ پشتگیری بکرێت
+// و ئەپەکە وەک PWA زیادکرابێت بۆ سەرەکی (Add to Home Screen). لە ئایفۆن (iOS 16.4+) کاردەکات،
+// بەڵام لە ئەندرۆید (Chrome/Firefox) هێشتا پشتگیری ناکرێت — ئەمە سنووری خودی وێبگەڕەکەیە نەک هەڵەی ئەپ.
+function updateAppBadge(){
+  try{
+    if(!('setAppBadge' in navigator)) return;
+    const counts = getDeptChangeCounts();
+    const total = Object.values(counts).reduce((a,b)=>a+(b||0), 0);
+    if(total > 0) navigator.setAppBadge(total).catch(()=>{});
+    else if('clearAppBadge' in navigator) navigator.clearAppBadge().catch(()=>{});
+  }catch(e){}
 }
 
 /* ======================================================================
@@ -2237,7 +2282,7 @@ function renderAllDepartments(){
       div.className='listItem';
       div.style.cursor='pointer';
       div.innerHTML=`
-        <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>${empCount} کارمەند</span></div>
+        <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>${empCount} کارمەند</span>${deptStalenessHtml(id)}</div>
         <div class="btns"><span class="muted">‹</span></div>`;
       div.onclick = ()=>openDeptDetail(id);
       wrap.appendChild(div);
@@ -2754,7 +2799,7 @@ function renderDeptsList(){
     const div=document.createElement('div');
     div.className='listItem';
     div.innerHTML=`
-      <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}</span></div>
+      <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}</span>${deptStalenessHtml(id)}</div>
       <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditDept(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
