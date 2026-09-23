@@ -466,6 +466,17 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
 
   /* هەژماردنی گۆڕانکاری وەک شیوەی فەیسبوک، لەتەنیشت ناوی بەشەکە */
   .fbBadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-inline-start:6px;border-radius:999px;background:#e0245e;color:#fff;font-size:11px;font-weight:700;line-height:18px;vertical-align:middle;}
+
+  /* دروکردی هەڵبژاردنی بەش، بۆ ئەوەی بتوانین بادج بۆ هەر بەشێک نیشان بدەین */
+  .deptPickerWrap{position:relative;}
+  .deptPickerBtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:4px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:14px;color:var(--ink);text-align:right;}
+  .deptPickerBtn .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;}
+  .deptPickerBtn .caret{color:var(--muted);font-size:11px;margin-inline-start:8px;flex:0 0 auto;}
+  .deptPickerDropdown{position:absolute;z-index:60;top:calc(100% + 4px);right:0;left:0;background:#fff;border:1.5px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);max-height:300px;overflow-y:auto;}
+  .deptPickerOpt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .deptPickerOpt:last-child{border-bottom:none;}
+  .deptPickerOpt:active,.deptPickerOpt:hover{background:var(--bg);}
+  .deptPickerOpt.active{background:var(--brand);color:var(--ink);font-weight:700;}
   .badge-muted{background:#eee;color:var(--muted);}
 
   .tabsRow{display:flex;gap:6px;margin-bottom:14px;}
@@ -602,8 +613,12 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <!-- Admin: department picker + manage button -->
     <div class="card" id="deptPickerCard" style="display:none;">
       <div class="rowbetween">
-        <div style="flex:1;">
-          <select id="deptPicker" class="selectBox" style="width:100%;margin-top:4px;" onchange="onDeptChange()"></select>
+        <div style="flex:1;" class="deptPickerWrap">
+          <button type="button" id="deptPickerBtn" class="deptPickerBtn" onclick="toggleDeptPickerDropdown(event)">
+            <span class="lbl" id="deptPickerLabel">بەش هەڵبژێرە</span>
+            <span class="caret">▾</span>
+          </button>
+          <div id="deptPickerDropdown" class="deptPickerDropdown" style="display:none;"></div>
         </div>
         <button class="btn btn-outline btn-sm" id="manageDeptsBtn" onclick="openManageDepts()">🏭 بەڕێوەبردنی بەشەکان</button>
       </div>
@@ -1356,18 +1371,9 @@ function deptChangeBadgeHtml(deptId){
   return `<span class="fbBadge">${n>99?'99+':n}</span>`;
 }
 // نوێکردنەوەی نیشانەکان لە دیوی دروکردا (لیستی هەڵبژاردنی بەش، بەڕێوەبردنی بەشەکان، هەموو بەشەکان)
-function updateDeptPickerBadges(){
-  const sel = document.getElementById('deptPicker');
-  if(!sel) return;
-  const counts = getDeptChangeCounts();
-  Array.from(sel.options).forEach(opt=>{
-    if(!opt.dataset.baseName) opt.dataset.baseName = opt.textContent.replace(/\s*🔴\d+\+?$/,'');
-    const n = counts[opt.value] || 0;
-    opt.textContent = n>0 ? `${opt.dataset.baseName} 🔴${n>99?'99+':n}` : opt.dataset.baseName;
-  });
-}
 function refreshDeptChangeBadges(){
-  updateDeptPickerBadges();
+  renderDeptPickerDropdown();
+  updateDeptPickerLabel();
   if(document.getElementById('deptsModal') && document.getElementById('deptsModal').classList.contains('show')) renderDeptsList();
   if(document.getElementById('allDeptsModal') && document.getElementById('allDeptsModal').classList.contains('show')) renderAllDepartments();
 }
@@ -1535,31 +1541,74 @@ function tryRestoreSession(){
 /* ======================================================================
    دروستکردنی دیمەنی سەرەکی: ساڵ / مانگ / بەش
    ====================================================================== */
+let deptPickerOptions = [];
 function fillDeptPicker(){
-  const sel = document.getElementById('deptPicker');
-  sel.innerHTML='';
   const visibleIds = getVisibleDeptIds();
   let res;
   if(visibleIds !== null){
-    if(!visibleIds.length){ currentDeptId=null; return; }
+    if(!visibleIds.length){
+      currentDeptId=null; deptPickerOptions=[];
+      renderDeptPickerDropdown(); updateDeptPickerLabel();
+      return;
+    }
     res = db.exec(`SELECT id,name FROM departments WHERE id IN (${visibleIds.join(',')}) ORDER BY name`);
   } else {
     res = db.exec(`SELECT id,name FROM departments ORDER BY name`);
   }
-  if(res.length){
-    res[0].values.forEach(([id,name])=>{
-      const opt=document.createElement('option');
-      opt.value=id; opt.textContent=name; opt.dataset.baseName=name;
-      sel.appendChild(opt);
-    });
-  }
-  if(res.length && res[0].values.length){
-    currentDeptId = res[0].values[0][0];
-    sel.value = currentDeptId;
+  deptPickerOptions = (res.length ? res[0].values : []).map(([id,name])=>({id,name}));
+  if(deptPickerOptions.length){
+    currentDeptId = deptPickerOptions[0].id;
   } else {
     currentDeptId = null;
   }
-  updateDeptPickerBadges();
+  renderDeptPickerDropdown();
+  updateDeptPickerLabel();
+}
+// نوێکردنەوەی دەقی دوگمەی هەڵبژاردنی بەش (ناوی بەشی هەڵبژێردراو + بادجی گۆڕانکاری)
+function updateDeptPickerLabel(){
+  const labelEl = document.getElementById('deptPickerLabel');
+  if(!labelEl) return;
+  const current = deptPickerOptions.find(o=>o.id===currentDeptId);
+  labelEl.innerHTML = current ? `${escapeHtml(current.name)}${deptChangeBadgeHtml(current.id)}` : 'هیچ بەشێک نییە';
+}
+// دروستکردنی لیستی دروکراوی بەشەکان لەناو پانێلی هەڵبژاردن
+function renderDeptPickerDropdown(){
+  const wrap = document.getElementById('deptPickerDropdown');
+  if(!wrap) return;
+  if(!deptPickerOptions.length){
+    wrap.innerHTML = '<div class="deptPickerOpt muted" style="cursor:default;">هیچ بەشێک نییە</div>';
+    return;
+  }
+  wrap.innerHTML = deptPickerOptions.map(o=>{
+    const isActive = o.id===currentDeptId;
+    return `<div class="deptPickerOpt${isActive?' active':''}" onclick="selectDeptOption(${o.id})">
+      <span>${escapeHtml(o.name)}</span>${deptChangeBadgeHtml(o.id)}
+    </div>`;
+  }).join('');
+}
+function toggleDeptPickerDropdown(e){
+  if(e) e.stopPropagation();
+  const dd = document.getElementById('deptPickerDropdown');
+  if(!dd) return;
+  const isOpen = dd.style.display === 'block';
+  if(isOpen){ dd.style.display='none'; }
+  else{ renderDeptPickerDropdown(); dd.style.display='block'; }
+}
+document.addEventListener('click', function(e){
+  const dd = document.getElementById('deptPickerDropdown');
+  const btn = document.getElementById('deptPickerBtn');
+  if(!dd || dd.style.display!=='block') return;
+  if(dd.contains(e.target) || (btn && btn.contains(e.target))) return;
+  dd.style.display='none';
+});
+function selectDeptOption(id){
+  currentDeptId = id;
+  clearDeptChange(id);
+  updateDeptPickerLabel();
+  renderDeptPickerDropdown();
+  const dd = document.getElementById('deptPickerDropdown');
+  if(dd) dd.style.display='none';
+  onDeptChange();
 }
 // بۆ بەشی "استیقالە": تەنها ڕاپۆرتی مانگانە پیشان بدە، تابی ڕۆژانە بشارەوە
 function applyResignationDeptTabRule(){
@@ -1577,8 +1626,6 @@ function applyResignationDeptTabRule(){
   }
 }
 function onDeptChange(){
-  currentDeptId = parseInt(document.getElementById('deptPicker').value);
-  clearDeptChange(currentDeptId);
   const shiftFilterSel = document.getElementById('employeesShiftFilter');
   if(shiftFilterSel) shiftFilterSel.value = 'all';
   applyResignationDeptTabRule();
