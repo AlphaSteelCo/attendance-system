@@ -2722,6 +2722,7 @@ function saveDeptEdit(){
   if(!name||!pass) return;
   db.run(`UPDATE departments SET name=?, password=? WHERE id=?`,[name,pass,editingDeptId]);
   persistLocal();
+  bumpDeptChange(editingDeptId);
   fillDeptPicker();
   renderCalendar();
   debouncedSync();
