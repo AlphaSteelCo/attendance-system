@@ -1003,6 +1003,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         </div>
         <button class="btn btn-outline btn-sm" style="width:100%;" onclick="downloadDbBackup()">⬇️ داگرتنی باکئەپ</button>
         <div class="settingsHint">فایلەکە دەتوانیت بکەیتەوە بە بەرنامەی SQLite لەسەر مۆبایل یان کۆمپیوتەر.</div>
+        <button class="btn btn-outline btn-sm" style="width:100%;margin-top:10px;" onclick="triggerRestoreBackup()">🔁 گەڕاندنەوەی باکئەپ (Restore)</button>
+        <input type="file" id="restoreDbFileInput" accept=".sqlite,.db,application/x-sqlite3" style="display:none;" onchange="handleRestoreBackupFile(event)">
+        <div class="settingsHint">فایلێکی .sqlite کە پێشتر داتگرتووتە هەڵبژێرە بۆ ئەوەی داتابەیسی ئێستا پێی بگۆڕدرێتەوە. ⚠️ هەموو داتای ئێستا (لەسەر ئەم ئامێرە و لە cloud) دەسڕدرێتەوە و دەگۆڕدرێت بە ناوەڕۆکی فایلی باکئەپ.</div>
       </div>
     </div>
 
@@ -1237,6 +1240,54 @@ function downloadDbBackup(){
   }catch(e){
     console.error('downloadDbBackup failed', e);
     alert('کێشەیەک ڕوویدا لە داگرتنی باکئەپ: ' + e.message);
+  }
+}
+
+/* هەڵبژاردنی فایلی باکئەپ بۆ گەڕاندنەوە */
+function triggerRestoreBackup(){
+  const input = document.getElementById('restoreDbFileInput');
+  if(input){ input.value=''; input.click(); }
+}
+
+/* خوێندنەوەی فایلی .sqlite هەڵبژێردراو و گۆڕینی داتابەیسی ئێستا پێی */
+async function handleRestoreBackupFile(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  if(!confirm(`دڵنیایت لە گەڕاندنەوەی باکئەپ لە فایلی "${file.name}"؟\n\nئەم کردارە هەموو داتای ئێستا (لەسەر ئەم ئامێرە و لە cloud) دەسڕێتەوە و دەیگۆڕێت بە ناوەڕۆکی ئەم فایلە. ناتوانرێت پاشگەز بێتەوە.`)){
+    event.target.value='';
+    return;
+  }
+  try{
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // پشکنین: دڵنیابوونەوە لەوەی فایلەکە بنکەدراوەیەکی SQLite دروستە پێش گۆڕینی ئێستاکە
+    let testDb;
+    try{
+      testDb = new SQL.Database(bytes);
+      testDb.exec('SELECT 1');
+      testDb.close();
+    }catch(verifyErr){
+      alert('ئەم فایلە بنکەدراوەیەکی SQLite دروست نییە یان زیانی پێگەیشتووە. باکئەپەکە نەگۆڕدرا.');
+      console.error('restore verify failed', verifyErr);
+      event.target.value='';
+      return;
+    }
+    loadDbFromBytes(bytes);
+    persistLocal();
+    refreshUIAfterSync();
+    showToast('باکئەپ لە ئامێر گەڕایەوە، خەریکی ناردنە cloud...');
+    if(isOnline()){
+      const ok = await uploadToSupabase();
+      showToast(ok ? 'باکئەپ بە سەرکەوتوویی گەڕایەوە و نێردرا بۆ cloud ✓' : 'باکئەپ لە ئامێر گەڕایەوە، بەڵام ناردنی بۆ cloud سەرکەوتوو نەبوو. کاتێک ئینتەرنێت هەبێت "تازەکردنەوە ئێستا" لکە.');
+    }else{
+      markLocalDirty();
+      showToast('باکئەپ لە ئامێر گەڕایەوە. کاتێک ئینتەرنێت هەبێت خۆکارانە دەنێردرێت بۆ cloud.');
+    }
+  }catch(e){
+    console.error('handleRestoreBackupFile failed', e);
+    alert('کێشەیەک ڕوویدا لە گەڕاندنەوەی باکئەپ: ' + e.message);
+  }finally{
+    event.target.value='';
   }
 }
 
