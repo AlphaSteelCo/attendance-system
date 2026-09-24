@@ -834,7 +834,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
     <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <div class="sectionTitle" style="margin-top:4px;">⏰ کاتی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیار</div>
-    <div class="muted" style="font-size:11.5px;margin-bottom:8px;">تەنها لەم کاتەدا سەرپەرشتیاری ئەم بەشە دەتوانێت داتای ئەمڕۆ تۆمار/دەستکاری بکات. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
+    <div class="muted" style="font-size:11.5px;margin-bottom:8px;">تەنها لەم کاتەدا سەرپەرشتیاری ئەم بەشە دەتوانێت داتای ئەمڕۆ تۆمار/دەستکاری بکات. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە. <b>بۆ بەشی شەفتی شەو</b> (کە بەسەر نیوەشەودا دەبڕێت، وەک 19:00 تا 07:00): کاتی دەستپێک لە کاتی کۆتایی گەورەتر دابنێ (وەک 19:00 → 08:00)، ئەو کات خۆکارانە تا کۆتایی کاتی دیاریکراو لە بەرەبەیاندا تۆماری شەوی دوێنێ کراوە دەمێنێتەوە.</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
       <div style="flex:1;">
         <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">کاتی دەستپێک</label>
@@ -2679,6 +2679,29 @@ function getDeptEditWindow(deptId){
   const [s,e] = res[0].values[0];
   return {start: s || '00:00', end: e || '23:59'};
 }
+// ئەو ڕۆژە بگەڕێنێتەوە کە لە ڕووی شەفتی شەوەوە "ئێستا" کراوەیە بۆ دەستکاریکردن.
+// ئەگەر کاتی بەش بڕوات بەسەر نیوەشەودا (وەک 19:00 -> 08:00)، ئەوا لە کاتژمێرەکانی بەرەبەیان
+// (0:00 تا کاتی کۆتایی) ڕۆژی "ئێستا"ی دەستکاریکردن هێشتا ڕۆژی پێشووە، چونکە ئەو شەفتە شەوە
+// لە ئێوارەی ڕۆژی پێشوو دەستی پێکردووە و تۆمارەکەی هێشتا هی ئەو ڕۆژەیە.
+function getEffectiveEditDate(deptId){
+  const {start,end} = getDeptEditWindow(deptId);
+  const toMinutes = t => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t||'');
+    if(!m) return null;
+    return (parseInt(m[1],10)*60) + parseInt(m[2],10);
+  };
+  const startMin = toMinutes(start), endMin = toMinutes(end);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if(startMin===null || endMin===null || startMin<=endMin) return today; // کاتی بڕاو بەسەر نیوەشەودا نییە
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  if(nowMin <= endMin){
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate()-1);
+    return yesterday;
+  }
+  return today;
+}
 function isWithinDeptEditWindow(deptId){
   const {start,end} = getDeptEditWindow(deptId);
   const toMinutes = t => {
@@ -2716,16 +2739,19 @@ function openDayModal(day){
   const isToday = diffDays === 0;
   const canDaily = hasPerm('daily', currentDeptId);
   const isSuperAdmin = !!(currentUser && currentUser.role==='admin');
+  // ڕۆژی "ئێستا"ی دەستکاریکردن بەگوێرەی شەفتی شەو (ئەگەر کاتی بەش بڕوات بەسەر نیوەشەودا)
+  const effectiveEditDate = getEffectiveEditDate(currentDeptId);
+  const isEffectiveToday = Math.round((selDateObj - effectiveEditDate) / 86400000) === 0;
   const withinWindow = isSuperAdmin || isWithinDeptEditWindow(currentDeptId);
-  // تەنها سوپەر ئەدمین دەتوانێت هەموو ڕۆژەکان دەستکاری بکات، ئەدمینەکانی تر تەنها ئەمڕۆ و لەناو کاتی دیاریکراودا
-  dayIsEditable = canDaily && (isSuperAdmin || (isToday && withinWindow));
+  // تەنها سوپەر ئەدمین دەتوانێت هەموو ڕۆژەکان دەستکاری بکات، ئەدمینەکانی تر تەنها ڕۆژی چالاکی ئێستا و لەناو کاتی دیاریکراودا
+  dayIsEditable = canDaily && (isSuperAdmin || (isEffectiveToday && withinWindow));
   const lockNote = document.getElementById('dayLockNote');
   const saveBtn = document.getElementById('dayModalSaveBtn');
   if(lockNote){
     if(!canDaily){
       lockNote.textContent = '🔒 دەسەڵاتی دەستکاریکردنی ڕۆژانەت لەم بەشەدا نییە.';
-    } else if(!isToday){
-      lockNote.textContent = '🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
+    } else if(!isEffectiveToday){
+      lockNote.textContent = '🔒 تەنها بۆ ئەمڕۆ (یان شەفتی شەوی هێشتا نەتەواوبووی دوێنێ) دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
     } else if(!withinWindow){
       const {start,end} = getDeptEditWindow(currentDeptId);
       lockNote.textContent = `🔒 دەستکاریکردنی ڕۆژانە تەنها لە کاتژمێر ${start} تا ${end} کراوەیە.`;
