@@ -1515,7 +1515,7 @@ function getTodayActionTags(deptId){
     res = db.exec(`SELECT DISTINCT action FROM change_log WHERE dept_id=${deptId} AND substr(changed_at,1,10)='${todayStr}'`);
   }catch(e){ return []; }
   if(!res.length) return [];
-  const order = {New:0, Upd:1, Del:2};
+  const order = {New:0, Edit:1, Mov:2, Upd:3, Del:4};
   return res[0].values.map(v=>v[0]).sort((a,b)=>(order[a]??9)-(order[b]??9));
 }
 // وەرگرتنی لیستی ڕیکۆردەکانی گۆڕانکاری بۆ بەشێک، نوێترین لە سەرەوە
@@ -1539,7 +1539,9 @@ function openChangeLogModal(deptId){
 }
 const ACTION_BADGE_META = {
   New: {label:'New', cls:'staleTag-green', text:'زیادکرا'},
-  Upd: {label:'Upd', cls:'staleTag-yellow', text:'نوێکرایەوە'},
+  Edit: {label:'Edit', cls:'staleTag-yellow', text:'دەستکاریکرا'},
+  Upd: {label:'Upd', cls:'staleTag-yellow', text:'ئامادەبوونی ڕۆژانە نوێکرایەوە'},
+  Mov: {label:'Mov', cls:'staleTag-yellow', text:'گوازرایەوە بۆ ئەم بەشە'},
   Del: {label:'Del', cls:'staleTag-red', text:'سڕایەوە'}
 };
 function formatChangeLogTime(iso){
@@ -1619,11 +1621,10 @@ function getDeptLastAttendanceDate(deptId){
   return new Date(y, m-1, d);
 }
 // دروستکردنی نیشانەی ڕەنگاوڕەنگ کە ڕادەگەیەنێت چەند ڕۆژە داتای بەشەکە نوێ نەکراوەتەوە
-// وەرگرتنی وردەکاری جۆرەکانی گۆڕانکاری بە شێوەی خشتەبەندی خوێندنەوە (New→زیادکراو ...)
+// وەرگرتنی وردەکاری جۆرەکانی گۆڕانکاری بە کورتکراوەی ئینگلیزی (New-Edit-Upd-Del-Mov)
 function actionTagsLabel(tags){
   if(!tags || !tags.length) return '';
-  const labels = {New:'زیادکراو', Upd:'نوێکراوە', Del:'سڕدراوە'};
-  return ' (' + tags.map(t=>labels[t]||t).join(' - ') + ')';
+  return ' (' + tags.join('-') + ')';
 }
 function deptStalenessHtml(deptId){
   const last = getDeptLastAttendanceDate(deptId);
@@ -2391,8 +2392,8 @@ function saveEmployeeEdit(){
   }
 
   persistLocal();
-  bumpDeptChange(editingEmpDeptId, 'Upd', 'کارمەند', name);
-  if(newDeptId !== editingEmpDeptId) bumpDeptChange(newDeptId, 'New', 'کارمەند', name+' (گوازراوە)');
+  bumpDeptChange(editingEmpDeptId, 'Edit', 'کارمەند', name);
+  if(newDeptId !== editingEmpDeptId) bumpDeptChange(newDeptId, 'Mov', 'کارمەند', name);
   closeModal('editEmployeeModal');
   refreshAfterEmployeeChange();
   debouncedSync();
@@ -3077,7 +3078,7 @@ function saveDeptEdit(){
   if(!name||!pass) return;
   db.run(`UPDATE departments SET name=?, password=? WHERE id=?`,[name,pass,editingDeptId]);
   persistLocal();
-  bumpDeptChange(editingDeptId, 'Upd', 'بەش', name);
+  bumpDeptChange(editingDeptId, 'Edit', 'بەش', name);
   fillDeptPicker();
   renderCalendar();
   debouncedSync();
