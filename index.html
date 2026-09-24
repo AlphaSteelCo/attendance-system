@@ -834,18 +834,18 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
     <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <div class="sectionTitle" style="margin-top:4px;">⏰ کاتی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیار</div>
-    <div class="muted" style="font-size:11.5px;margin-bottom:8px;">تەنها لەم کاتەدا سەرپەرشتیاری ئەم بەشە دەتوانێت داتای ئەمڕۆ تۆمار/دەستکاری بکات. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە. <b>بۆ بەشی شەفتی شەو</b> (کە بەسەر نیوەشەودا دەبڕێت، وەک 19:00 تا 07:00): کاتی دەستپێک لە کاتی کۆتایی گەورەتر دابنێ (وەک 19:00 → 08:00)، ئەو کات خۆکارانە تا کۆتایی کاتی دیاریکراو لە بەرەبەیاندا تۆماری شەوی دوێنێ کراوە دەمێنێتەوە.</div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+    <div class="muted" style="font-size:11.5px;margin-bottom:8px;">کاتی دەستپێک دیاری بکە و پاشان چەند کاتژمێر دوای ئەوە کراوە بمێنێتەوە بۆ تۆمار/دەستکاریکردنی داتای ئەمڕۆ، ئینجا خۆکارانە قوفڵ دەبێت. <b>بۆ بەشی شەفتی شەو</b>: کاتی دەستپێک بکە کاتی دەستپێکی شەفتی شەو (وەک 19:00) و درێژایی کاتژمێرەکان بکە بۆ ئەو ماوەیەی پێویستە (وەک 8 یان 20 کاژمێر)، تۆماری شەوی دوێنێ خۆکارانە کراوە دەمێنێتەوە تا کۆتایی ئەو ماوەیە تەنانەت دوای نیوەشەویش. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px;">
       <div style="flex:1;">
         <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">کاتی دەستپێک</label>
-        <input class="miniInput" type="time" id="editDeptEditStart" style="margin-bottom:0;">
+        <input class="miniInput" type="time" id="editDeptEditStart" style="margin-bottom:0;" oninput="updateDeptWindowPreview()">
       </div>
-      <span class="muted" style="padding-top:16px;">تا</span>
       <div style="flex:1;">
-        <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">کاتی کۆتایی</label>
-        <input class="miniInput" type="time" id="editDeptEditEnd" style="margin-bottom:0;">
+        <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">چەند کاژمێر دوای دەستپێک؟</label>
+        <input class="miniInput" type="number" id="editDeptEditDuration" min="0.5" max="24" step="0.5" style="margin-bottom:0;" oninput="updateDeptWindowPreview()">
       </div>
     </div>
+    <div class="muted" style="font-size:11px;margin-bottom:10px;" id="editDeptWindowPreview"></div>
     <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی/کات</button>
     <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="openChangeLogModal(editingDeptId)">🕘 مێژووی گۆڕانکاری</button>
     <button class="btn btn-danger btn-sm" style="width:100%;margin-bottom:14px;" onclick="deleteDept()">🗑️ سڕینەوەی ئەم بەشە</button>
@@ -1143,7 +1143,7 @@ function createFreshDb(){
   db = new SQL.Database();
   db.run(`
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT, edit_start TEXT DEFAULT '00:00', edit_end TEXT DEFAULT '23:59');
+    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT, edit_start TEXT DEFAULT '00:00', edit_end TEXT DEFAULT '23:59', edit_duration_min INTEGER DEFAULT 1440);
     CREATE TABLE shifts (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, code TEXT, hours TEXT);
     CREATE TABLE employees (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, emp_code TEXT, shift_type TEXT, hours TEXT);
     CREATE TABLE attendance (
@@ -1197,6 +1197,24 @@ function ensureSchema(){
   if(!deptColNames.includes('edit_end')){
     db.run(`ALTER TABLE departments ADD COLUMN edit_end TEXT DEFAULT '23:59'`);
     db.run(`UPDATE departments SET edit_end='23:59' WHERE edit_end IS NULL`);
+  }
+  if(!deptColNames.includes('edit_duration_min')){
+    db.run(`ALTER TABLE departments ADD COLUMN edit_duration_min INTEGER DEFAULT 1440`);
+    // بۆ بەشەکانی پێشتر بە کاتی دەستپێک/کۆتایی دیاریکرابوون، خۆکارانە درێژایی کاتەکە دەردەهێنین
+    // تا ڕێکخستنی پێشووی هەر بەشێک بپارێزرێت
+    const dr = db.exec(`SELECT id, edit_start, edit_end FROM departments`);
+    if(dr.length){
+      const toMin = t => { const m=/^(\d{1,2}):(\d{2})$/.exec(t||''); return m ? (parseInt(m[1],10)*60+parseInt(m[2],10)) : null; };
+      dr[0].values.forEach(([id,s,e])=>{
+        const sMin = toMin(s), eMin = toMin(e);
+        let dur = 1440;
+        if(sMin!==null && eMin!==null && !(sMin===0 && eMin===1439)){
+          dur = eMin >= sMin ? (eMin - sMin) : (1440 - sMin + eMin);
+          if(dur<=0) dur = 1440;
+        }
+        db.run(`UPDATE departments SET edit_duration_min=? WHERE id=?`,[dur,id]);
+      });
+    }
   }
   const shiftCols = db.exec(`PRAGMA table_info(shifts)`);
   const hasHours = shiftCols.length && shiftCols[0].values.some(row => row[1] === 'hours');
@@ -2672,28 +2690,41 @@ let dayLateTimes = {};
 let dayNoteText = {};
 
 // پشکنینی ئەوەی کاتی ئێستا لەناو کاتی دیاریکراوی دەستکاریکردنی ڕۆژانەی ئەم بەشەدایە یان نا
-// (کاتی دەستپێک/کۆتایی لە بەڕێوەبردنی بەشەکانەوە دیاری دەکرێت، بنەڕەتی 00:00 - 23:59 واتە هەموو ڕۆژ کراوەیە)
+// (کاتی دەستپێک + چەند کاژمێر لە بەڕێوەبردنی بەشەکانەوە دیاری دەکرێت، بنەڕەت 24 کاژمێر واتە هەموو ڕۆژ کراوەیە)
 function getDeptEditWindow(deptId){
-  const res = db.exec(`SELECT edit_start,edit_end FROM departments WHERE id=${deptId}`);
-  if(!res.length || !res[0].values.length) return {start:'00:00', end:'23:59'};
-  const [s,e] = res[0].values[0];
-  return {start: s || '00:00', end: e || '23:59'};
+  const res = db.exec(`SELECT edit_start,edit_duration_min FROM departments WHERE id=${deptId}`);
+  if(!res.length || !res[0].values.length) return {start:'00:00', durationMin:1440};
+  const [s,d] = res[0].values[0];
+  return {start: s || '00:00', durationMin: (d===null || d===undefined) ? 1440 : d};
+}
+function timeToMinutes(t){
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t||'');
+  if(!m) return null;
+  return (parseInt(m[1],10)*60) + parseInt(m[2],10);
+}
+function minutesToTime(min){
+  min = ((min % 1440) + 1440) % 1440;
+  const h = Math.floor(min/60), m = min%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+// کاتی دەستپێک و درێژایی کاتژمێرەکان وەردەگرێت و دەیانگۆڕێت بۆ startMin/endMin/wraps/alwaysOpen
+function computeDeptWindow(deptId){
+  const {start,durationMin} = getDeptEditWindow(deptId);
+  const startMin = timeToMinutes(start);
+  if(startMin===null || durationMin>=1440) return {startMin: startMin||0, endMin: startMin||0, wraps:false, alwaysOpen:true};
+  const endMin = (startMin + durationMin) % 1440;
+  const wraps = endMin < startMin;
+  return {startMin, endMin, wraps, alwaysOpen:false};
 }
 // ئەو ڕۆژە بگەڕێنێتەوە کە لە ڕووی شەفتی شەوەوە "ئێستا" کراوەیە بۆ دەستکاریکردن.
-// ئەگەر کاتی بەش بڕوات بەسەر نیوەشەودا (وەک 19:00 -> 08:00)، ئەوا لە کاتژمێرەکانی بەرەبەیان
-// (0:00 تا کاتی کۆتایی) ڕۆژی "ئێستا"ی دەستکاریکردن هێشتا ڕۆژی پێشووە، چونکە ئەو شەفتە شەوە
+// ئەگەر کاتی بەش بەسەر نیوەشەودا بڕوات (بۆ نموونە 19:00 + 12 کاژمێر = تا 07:00)، ئەوا لە کاتژمێرەکانی
+// بەرەبەیان (0:00 تا کاتی کۆتایی) ڕۆژی "ئێستا"ی دەستکاریکردن هێشتا ڕۆژی پێشووە، چونکە ئەو شەفتە شەوە
 // لە ئێوارەی ڕۆژی پێشوو دەستی پێکردووە و تۆمارەکەی هێشتا هی ئەو ڕۆژەیە.
 function getEffectiveEditDate(deptId){
-  const {start,end} = getDeptEditWindow(deptId);
-  const toMinutes = t => {
-    const m = /^(\d{1,2}):(\d{2})$/.exec(t||'');
-    if(!m) return null;
-    return (parseInt(m[1],10)*60) + parseInt(m[2],10);
-  };
-  const startMin = toMinutes(start), endMin = toMinutes(end);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if(startMin===null || endMin===null || startMin<=endMin) return today; // کاتی بڕاو بەسەر نیوەشەودا نییە
+  const {startMin, endMin, wraps, alwaysOpen} = computeDeptWindow(deptId);
+  if(alwaysOpen || !wraps) return today;
   const nowMin = now.getHours()*60 + now.getMinutes();
   if(nowMin <= endMin){
     const yesterday = new Date(today);
@@ -2703,20 +2734,28 @@ function getEffectiveEditDate(deptId){
   return today;
 }
 function isWithinDeptEditWindow(deptId){
-  const {start,end} = getDeptEditWindow(deptId);
-  const toMinutes = t => {
-    const m = /^(\d{1,2}):(\d{2})$/.exec(t||'');
-    if(!m) return null;
-    return (parseInt(m[1],10)*60) + parseInt(m[2],10);
-  };
-  const startMin = toMinutes(start), endMin = toMinutes(end);
-  if(startMin===null || endMin===null) return true;
+  const {startMin, endMin, wraps, alwaysOpen} = computeDeptWindow(deptId);
+  if(alwaysOpen) return true;
   const now = new Date();
   const nowMin = now.getHours()*60 + now.getMinutes();
-  if(startMin <= endMin) return nowMin >= startMin && nowMin <= endMin;
-  // کاتی کۆتایی پێش کاتی دەستپێکە، واتە کاتەکە لە شەودا دەبڕێتەوە (بۆ نموونە 19:00 - 07:00)
-  return nowMin >= startMin || nowMin <= endMin;
+  // کاتی کۆتایی پێش کاتی دەستپێکە، واتە کاتەکە لە شەودا دەبڕێتەوە (بۆ نموونە 19:00 + 12 کاژمێر)
+  return wraps ? (nowMin >= startMin || nowMin <= endMin) : (nowMin >= startMin && nowMin <= endMin);
 }
+function updateDeptWindowPreview(){
+  const prev = document.getElementById('editDeptWindowPreview');
+  if(!prev) return;
+  const start = document.getElementById('editDeptEditStart').value || '00:00';
+  const hours = parseFloat(document.getElementById('editDeptEditDuration').value);
+  if(!hours || hours<=0){ prev.textContent=''; return; }
+  const startMin = timeToMinutes(start);
+  if(startMin===null){ prev.textContent=''; return; }
+  const durationMin = Math.round(hours*60);
+  if(durationMin>=1440){ prev.textContent='ℹ️ هەموو ڕۆژ کراوە دەبێت (بێ سنووری کات).'; return; }
+  const endMin = (startMin+durationMin)%1440;
+  const wraps = endMin < startMin;
+  prev.textContent = `ℹ️ کراوەیە لە ${start} تا ${minutesToTime(endMin)}${wraps ? ' (ڕۆژی دواتر)' : ''}`;
+}
+
 
 function openDayModal(day){
   selDay = day;
@@ -2753,8 +2792,8 @@ function openDayModal(day){
     } else if(!isEffectiveToday){
       lockNote.textContent = '🔒 تەنها بۆ ئەمڕۆ (یان شەفتی شەوی هێشتا نەتەواوبووی دوێنێ) دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
     } else if(!withinWindow){
-      const {start,end} = getDeptEditWindow(currentDeptId);
-      lockNote.textContent = `🔒 دەستکاریکردنی ڕۆژانە تەنها لە کاتژمێر ${start} تا ${end} کراوەیە.`;
+      const {startMin,endMin,wraps} = computeDeptWindow(currentDeptId);
+      lockNote.textContent = `🔒 دەستکاریکردنی ڕۆژانە تەنها لە کاتژمێر ${minutesToTime(startMin)} تا ${minutesToTime(endMin)}${wraps?' (ڕۆژی دواتر)':''} کراوەیە.`;
     } else {
       lockNote.textContent = '';
     }
@@ -3115,16 +3154,22 @@ function openManageDepts(){
 function renderDeptsList(){
   const wrap = document.getElementById('deptsList');
   wrap.innerHTML='';
-  const res = db.exec(`SELECT id,name,password,edit_start,edit_end FROM departments ORDER BY name`);
+  const res = db.exec(`SELECT id,name,password,edit_start,edit_duration_min FROM departments ORDER BY name`);
   if(!res.length || !res[0].values.length){
     wrap.innerHTML='<div class="muted">هیچ بەشێک نییە</div>';
     return;
   }
-  res[0].values.forEach(([id,name,pass,editStart,editEnd])=>{
+  res[0].values.forEach(([id,name,pass,editStart,durMin])=>{
     const div=document.createElement('div');
     div.className='listItem';
-    const s = editStart || '00:00', e = editEnd || '23:59';
-    const windowTxt = (s==='00:00' && e==='23:59') ? '' : ` • ⏰ ${escapeHtml(s)}-${escapeHtml(e)}`;
+    const s = editStart || '00:00';
+    const d = (durMin===null||durMin===undefined) ? 1440 : durMin;
+    let windowTxt = '';
+    if(d < 1440){
+      const endMin = ((timeToMinutes(s) + d) % 1440 + 1440) % 1440;
+      const wraps = endMin < timeToMinutes(s);
+      windowTxt = ` • ⏰ ${escapeHtml(s)}-${escapeHtml(minutesToTime(endMin))}${wraps?' (دواتر)':''}`;
+    }
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}${windowTxt}</span></div>
       <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditDept(${id})">✏️</button></div>`;
@@ -3148,13 +3193,15 @@ function addDepartment(){
 function openEditDept(id){
   editingDeptId = id;
   clearDeptChange(id);
-  const res = db.exec(`SELECT name,password,edit_start,edit_end FROM departments WHERE id=${id}`);
-  const [name,pass,editStart,editEnd] = res[0].values[0];
+  const res = db.exec(`SELECT name,password,edit_start,edit_duration_min FROM departments WHERE id=${id}`);
+  const [name,pass,editStart,durMin] = res[0].values[0];
+  const d = (durMin===null||durMin===undefined) ? 1440 : durMin;
   document.getElementById('deptEditTitle').textContent = 'دەستکاریکردنی: '+name;
   document.getElementById('editDeptName').value = name;
   document.getElementById('editDeptPass').value = pass;
   document.getElementById('editDeptEditStart').value = editStart || '00:00';
-  document.getElementById('editDeptEditEnd').value = editEnd || '23:59';
+  document.getElementById('editDeptEditDuration').value = Math.round((d/60)*2)/2; // نزیکترین 0.5 کاژمێر
+  updateDeptWindowPreview();
   renderShiftsEditList();
   closeModal('deptsModal');
   openModal('deptEditModal');
@@ -3164,8 +3211,11 @@ function saveDeptEdit(){
   const pass = document.getElementById('editDeptPass').value.trim();
   if(!name||!pass) return;
   const editStart = document.getElementById('editDeptEditStart').value || '00:00';
-  const editEnd = document.getElementById('editDeptEditEnd').value || '23:59';
-  db.run(`UPDATE departments SET name=?, password=?, edit_start=?, edit_end=? WHERE id=?`,[name,pass,editStart,editEnd,editingDeptId]);
+  let hours = parseFloat(document.getElementById('editDeptEditDuration').value);
+  if(!hours || hours<=0) hours = 24;
+  if(hours>24) hours = 24;
+  const durationMin = Math.round(hours*60);
+  db.run(`UPDATE departments SET name=?, password=?, edit_start=?, edit_duration_min=? WHERE id=?`,[name,pass,editStart,durationMin,editingDeptId]);
   persistLocal();
   bumpDeptChange(editingDeptId, 'Edit', 'بەش', name);
   fillDeptPicker();
