@@ -833,7 +833,20 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
     <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-    <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی</button>
+    <div class="sectionTitle" style="margin-top:4px;">⏰ کاتی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیار</div>
+    <div class="muted" style="font-size:11.5px;margin-bottom:8px;">تەنها لەم کاتەدا سەرپەرشتیاری ئەم بەشە دەتوانێت داتای ئەمڕۆ تۆمار/دەستکاری بکات. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <div style="flex:1;">
+        <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">کاتی دەستپێک</label>
+        <input class="miniInput" type="time" id="editDeptEditStart" style="margin-bottom:0;">
+      </div>
+      <span class="muted" style="padding-top:16px;">تا</span>
+      <div style="flex:1;">
+        <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">کاتی کۆتایی</label>
+        <input class="miniInput" type="time" id="editDeptEditEnd" style="margin-bottom:0;">
+      </div>
+    </div>
+    <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی/کات</button>
     <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="openChangeLogModal(editingDeptId)">🕘 مێژووی گۆڕانکاری</button>
     <button class="btn btn-danger btn-sm" style="width:100%;margin-bottom:14px;" onclick="deleteDept()">🗑️ سڕینەوەی ئەم بەشە</button>
     <hr class="sep">
@@ -1130,7 +1143,7 @@ function createFreshDb(){
   db = new SQL.Database();
   db.run(`
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT);
+    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT, edit_start TEXT DEFAULT '00:00', edit_end TEXT DEFAULT '23:59');
     CREATE TABLE shifts (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, code TEXT, hours TEXT);
     CREATE TABLE employees (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, emp_code TEXT, shift_type TEXT, hours TEXT);
     CREATE TABLE attendance (
@@ -1174,6 +1187,17 @@ function ensureSchema(){
     employee_id INTEGER, status TEXT,
     UNIQUE(year,month,day,employee_id)
   )`);
+  // بۆ داتابەیسی کۆن: کاتی دەستپێک و کۆتایی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیاری هەر بەشێک
+  const deptCols = db.exec(`PRAGMA table_info(departments)`);
+  const deptColNames = deptCols.length ? deptCols[0].values.map(row => row[1]) : [];
+  if(!deptColNames.includes('edit_start')){
+    db.run(`ALTER TABLE departments ADD COLUMN edit_start TEXT DEFAULT '00:00'`);
+    db.run(`UPDATE departments SET edit_start='00:00' WHERE edit_start IS NULL`);
+  }
+  if(!deptColNames.includes('edit_end')){
+    db.run(`ALTER TABLE departments ADD COLUMN edit_end TEXT DEFAULT '23:59'`);
+    db.run(`UPDATE departments SET edit_end='23:59' WHERE edit_end IS NULL`);
+  }
   const shiftCols = db.exec(`PRAGMA table_info(shifts)`);
   const hasHours = shiftCols.length && shiftCols[0].values.some(row => row[1] === 'hours');
   if(!hasHours){
@@ -2647,6 +2671,30 @@ let dayAttendanceState = {};
 let dayLateTimes = {};
 let dayNoteText = {};
 
+// پشکنینی ئەوەی کاتی ئێستا لەناو کاتی دیاریکراوی دەستکاریکردنی ڕۆژانەی ئەم بەشەدایە یان نا
+// (کاتی دەستپێک/کۆتایی لە بەڕێوەبردنی بەشەکانەوە دیاری دەکرێت، بنەڕەتی 00:00 - 23:59 واتە هەموو ڕۆژ کراوەیە)
+function getDeptEditWindow(deptId){
+  const res = db.exec(`SELECT edit_start,edit_end FROM departments WHERE id=${deptId}`);
+  if(!res.length || !res[0].values.length) return {start:'00:00', end:'23:59'};
+  const [s,e] = res[0].values[0];
+  return {start: s || '00:00', end: e || '23:59'};
+}
+function isWithinDeptEditWindow(deptId){
+  const {start,end} = getDeptEditWindow(deptId);
+  const toMinutes = t => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t||'');
+    if(!m) return null;
+    return (parseInt(m[1],10)*60) + parseInt(m[2],10);
+  };
+  const startMin = toMinutes(start), endMin = toMinutes(end);
+  if(startMin===null || endMin===null) return true;
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  if(startMin <= endMin) return nowMin >= startMin && nowMin <= endMin;
+  // کاتی کۆتایی پێش کاتی دەستپێکە، واتە کاتەکە لە شەودا دەبڕێتەوە (بۆ نموونە 19:00 - 07:00)
+  return nowMin >= startMin || nowMin <= endMin;
+}
+
 function openDayModal(day){
   selDay = day;
   document.getElementById('dayModalTitle').textContent =
@@ -2667,14 +2715,23 @@ function openDayModal(day){
   const diffDays = Math.round((selDateObj - todayObj) / 86400000);
   const isToday = diffDays === 0;
   const canDaily = hasPerm('daily', currentDeptId);
-  // تەنها سوپەر ئەدمین دەتوانێت هەموو ڕۆژەکان دەستکاری بکات، ئەدمینەکانی تر تەنها ئەمڕۆ
-  dayIsEditable = canDaily && ((currentUser && currentUser.role==='admin') || isToday);
+  const isSuperAdmin = !!(currentUser && currentUser.role==='admin');
+  const withinWindow = isSuperAdmin || isWithinDeptEditWindow(currentDeptId);
+  // تەنها سوپەر ئەدمین دەتوانێت هەموو ڕۆژەکان دەستکاری بکات، ئەدمینەکانی تر تەنها ئەمڕۆ و لەناو کاتی دیاریکراودا
+  dayIsEditable = canDaily && (isSuperAdmin || (isToday && withinWindow));
   const lockNote = document.getElementById('dayLockNote');
   const saveBtn = document.getElementById('dayModalSaveBtn');
   if(lockNote){
-    lockNote.textContent = !canDaily
-      ? '🔒 دەسەڵاتی دەستکاریکردنی ڕۆژانەت لەم بەشەدا نییە.'
-      : '🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
+    if(!canDaily){
+      lockNote.textContent = '🔒 دەسەڵاتی دەستکاریکردنی ڕۆژانەت لەم بەشەدا نییە.';
+    } else if(!isToday){
+      lockNote.textContent = '🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
+    } else if(!withinWindow){
+      const {start,end} = getDeptEditWindow(currentDeptId);
+      lockNote.textContent = `🔒 دەستکاریکردنی ڕۆژانە تەنها لە کاتژمێر ${start} تا ${end} کراوەیە.`;
+    } else {
+      lockNote.textContent = '';
+    }
     lockNote.style.display = dayIsEditable ? 'none' : 'flex';
   }
   if(saveBtn) saveBtn.style.display = dayIsEditable ? '' : 'none';
@@ -3032,16 +3089,18 @@ function openManageDepts(){
 function renderDeptsList(){
   const wrap = document.getElementById('deptsList');
   wrap.innerHTML='';
-  const res = db.exec(`SELECT id,name,password FROM departments ORDER BY name`);
+  const res = db.exec(`SELECT id,name,password,edit_start,edit_end FROM departments ORDER BY name`);
   if(!res.length || !res[0].values.length){
     wrap.innerHTML='<div class="muted">هیچ بەشێک نییە</div>';
     return;
   }
-  res[0].values.forEach(([id,name,pass])=>{
+  res[0].values.forEach(([id,name,pass,editStart,editEnd])=>{
     const div=document.createElement('div');
     div.className='listItem';
+    const s = editStart || '00:00', e = editEnd || '23:59';
+    const windowTxt = (s==='00:00' && e==='23:59') ? '' : ` • ⏰ ${escapeHtml(s)}-${escapeHtml(e)}`;
     div.innerHTML=`
-      <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}</span></div>
+      <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}${windowTxt}</span></div>
       <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditDept(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
@@ -3063,11 +3122,13 @@ function addDepartment(){
 function openEditDept(id){
   editingDeptId = id;
   clearDeptChange(id);
-  const res = db.exec(`SELECT name,password FROM departments WHERE id=${id}`);
-  const [name,pass] = res[0].values[0];
+  const res = db.exec(`SELECT name,password,edit_start,edit_end FROM departments WHERE id=${id}`);
+  const [name,pass,editStart,editEnd] = res[0].values[0];
   document.getElementById('deptEditTitle').textContent = 'دەستکاریکردنی: '+name;
   document.getElementById('editDeptName').value = name;
   document.getElementById('editDeptPass').value = pass;
+  document.getElementById('editDeptEditStart').value = editStart || '00:00';
+  document.getElementById('editDeptEditEnd').value = editEnd || '23:59';
   renderShiftsEditList();
   closeModal('deptsModal');
   openModal('deptEditModal');
@@ -3076,7 +3137,9 @@ function saveDeptEdit(){
   const name = document.getElementById('editDeptName').value.trim();
   const pass = document.getElementById('editDeptPass').value.trim();
   if(!name||!pass) return;
-  db.run(`UPDATE departments SET name=?, password=? WHERE id=?`,[name,pass,editingDeptId]);
+  const editStart = document.getElementById('editDeptEditStart').value || '00:00';
+  const editEnd = document.getElementById('editDeptEditEnd').value || '23:59';
+  db.run(`UPDATE departments SET name=?, password=?, edit_start=?, edit_end=? WHERE id=?`,[name,pass,editStart,editEnd,editingDeptId]);
   persistLocal();
   bumpDeptChange(editingDeptId, 'Edit', 'بەش', name);
   fillDeptPicker();
