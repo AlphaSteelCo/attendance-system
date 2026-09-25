@@ -3579,10 +3579,15 @@ async function uploadToSupabase(){
   }
 }
 
+// ئەم فانکشنە ئۆبجێکتێک دەگەڕێنێتەوە {ok, empty} نەک تەنها true/false،
+// تاکو لە boot() دا جیاوازی بکرێت لەنێوان "ڕاستەوخۆ داتا نییە لە cloud" (empty:true)
+// و "هەڵەیەک ڕوویدا/کۆتایی‌کات/ئینتەرنێت" (ok:false, empty:false).
+// پێشتر هەردوو حاڵەتەکە false دەگەڕایەوە، بۆیە boot() هەڵەی کاتی وەک "یەکەم
+// جار بەکارهێنانە" لێک دەداوە و databaseـی ڕاستەقینەی لە cloud بە بەتاڵی دەگۆڕی.
 async function downloadFromSupabase(){
-  if(!isOnline()) return false;
+  if(!isOnline()) return {ok:false, empty:false};
   if(!supabaseClient) initSupabaseClient();
-  if(!supabaseClient) return false;
+  if(!supabaseClient) return {ok:false, empty:false};
   try{
     const {data,error}=await withTimeout(supabaseClient
       .from(SUPABASE_TABLE)
@@ -3590,17 +3595,17 @@ async function downloadFromSupabase(){
       .eq('app_id',SUPABASE_APP_ID)
       .maybeSingle(), 12000);
     if(error) throw error;
-    if(!data || !data.db_base64) return false;
+    if(!data || !data.db_base64) return {ok:false, empty:true};
     loadDbFromBytes(base64ToBytes(data.db_base64));
     persistLocal(true);
     lastSyncedAt = data.updated_at || new Date().toISOString();
     localStorage.setItem('att_last_synced_at', lastSyncedAt);
     setSyncStatus('synced');
-    return true;
+    return {ok:true, empty:false};
   }catch(e){
     console.warn('Supabase download failed',e);
     setSyncStatus(isOnline() ? 'error' : 'offline');
-    return false;
+    return {ok:false, empty:false};
   }
 }
 
@@ -3640,12 +3645,12 @@ async function pullIfRemoteNewer(silent){
   const remoteUpdatedAt = await getRemoteUpdatedAt();
   if(!remoteUpdatedAt) return false;
   if(!lastSyncedAt || new Date(remoteUpdatedAt) > new Date(lastSyncedAt)){
-    const ok = await downloadFromSupabase();
-    if(ok){
+    const res = await downloadFromSupabase();
+    if(res.ok){
       refreshUIAfterSync();
       if(!silent) showToast('داتای نوێتر لە ئامێرێکی تر هاتووە و هێنرا ✓');
     }
-    return ok;
+    return res.ok;
   }
   return false;
 }
@@ -3661,9 +3666,9 @@ async function syncWhenOnline(silent){
     if(!lastSyncedAt){
       const remoteUpdatedAt = await getRemoteUpdatedAt();
       if(remoteUpdatedAt){
-        const ok = await downloadFromSupabase();
-        if(ok) refreshUIAfterSync();
-        return ok;
+        const res = await downloadFromSupabase();
+        if(res.ok) refreshUIAfterSync();
+        return res.ok;
       }
       return await uploadToSupabase();
     }
@@ -3787,12 +3792,23 @@ function hideBootLoader(){
     document.querySelector('#offlineOverlay .offlineText').textContent = 'نەتوانرا پەیوەندی بە داتابەیسی ئۆنڵاین بکرێت. تکایە وای‌فای یان داتای مۆبایل بپشکنە و دووبارە هەوڵ بدەوە.';
     return;
   }
-  let loaded = await downloadFromSupabase();
-  if(!loaded){
-    // ئەگەر هیچ داتایەک لە داتابەیسی ئۆنڵاین نەبوو (یەکەم جار بەکارهێنانە)، داتابەیسێکی نوێ دروست بکە و بینێرە
+  let dlRes = await downloadFromSupabase();
+  if(!dlRes.ok && dlRes.empty){
+    // تەنها کاتێک Supabase ڕاستەوخۆ دەڵێت هیچ ڕیکۆردێک نییە (یەکەم جار بەکارهێنانە)،
+    // داتابەیسێکی نوێ دروست بکە و بینێرە. ئەمە نابێتە هۆی سڕینەوەی داتای ڕاستەقینە
+    // چونکە جیاوازە لە هەڵەی کاتی/ئینتەرنێت.
     createFreshDb();
-    loaded = await uploadToSupabase();
+    dlRes = {ok: await uploadToSupabase(), empty:false};
+  }else if(!dlRes.ok){
+    // هەڵەیەکی کاتی ڕوویداوە (timeout، Supabase هێشتا خەوتووە، کێشەی ئینتەرنێت...)
+    // — بە هیچ شێوەیەک داتابەیسی نوێی بەتاڵ دروست مەکە، تەنها دووبارە هەوڵ بدەوە
+    hideBootLoader();
+    showOfflineOverlay();
+    document.querySelector('#offlineOverlay .offlineText').textContent = 'نەتوانرا داتا لە ئینتەرنێتەوە بهێنرێت. تکایە دڵنیابەرەوە لە پەیوەندی ئینتەرنێتەکەت و دووبارە هەوڵ بدەوە.';
+    window.addEventListener('online', ()=> location.reload(), {once:true});
+    return;
   }
+  const loaded = dlRes.ok;
   if(!loaded){
     hideBootLoader();
     showOfflineOverlay();
