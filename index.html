@@ -887,6 +887,20 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   </div>
 </div>
 
+<!-- ===== Auto Backups Modal (باکئەپی خۆکار) ===== -->
+<div class="overlay" id="autoBackupsModal">
+  <div class="modal modalFlex">
+    <div class="stickyModalTop">
+      <div class="modalHead">
+        <h3>باکئەپی خۆکار</h3>
+        <button class="closeX" onclick="closeModal('autoBackupsModal')">✕</button>
+      </div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین ١٠ باکئەپی خۆکار لەسەر ئەم ئامێرە، نوێترین لە سەرەوە</div>
+    </div>
+    <div id="autoBackupsList" class="modalScrollList"></div>
+  </div>
+</div>
+
 <!-- ===== Add Employee Modal ===== -->
 <div class="overlay" id="addEmployeeModal">
   <div class="modal">
@@ -1041,6 +1055,17 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         <input type="file" id="restoreDbFileInput" accept=".sqlite,.db,application/x-sqlite3" style="display:none;" onchange="handleRestoreBackupFile(event)">
         <div class="settingsHint">فایلێکی .sqlite کە پێشتر داتگرتووتە هەڵبژێرە بۆ ئەوەی داتابەیسی ئێستا پێی بگۆڕدرێتەوە. ⚠️ هەموو داتای ئێستا (لەسەر ئەم ئامێرە و لە cloud) دەسڕدرێتەوە و دەگۆڕدرێت بە ناوەڕۆکی فایلی باکئەپ.</div>
       </div>
+
+      <div class="settingsCard">
+        <div class="settingsCardHead">
+          <span class="settingsIcon">🕒</span>
+          <div>
+            <div class="settingsCardTitle">باکئەپی خۆکار</div>
+            <div class="settingsCardDesc">ئەم ئامێرە خۆکارانە وێنەیەک لە داتابەیس هەڵدەگرێت (زۆرترین جارێک لە هەر 6 کاتژمێردا)، تاکو ئەگەر داتا بە هەڵە لەناوچوو بتوانرێت بگەڕدرێتەوە.</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="width:100%;" onclick="openAutoBackupsModal()">🕒 بینینی باکئەپە خۆکارەکان</button>
+      </div>
     </div>
 
     <div id="settingsTab_admin" style="display:none;">
@@ -1130,6 +1155,9 @@ let localDirty = localStorage.getItem('att_local_dirty') === '1';
 let syncInFlight = false;
 const IDB_NAME = 'attendance_offline_db';
 const IDB_STORE = 'kv';
+const IDB_BACKUPS_STORE = 'backups';
+const AUTO_BACKUP_KEEP = 10; // دوایین چەند باکئەپێک هەڵدەگیرێت
+const AUTO_BACKUP_MIN_INTERVAL_MS = 6*60*60*1000; // زۆرترین جارێک لە هەر 6 کاتژمێردا
 
 const KURDISH_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1369,6 +1397,59 @@ async function handleRestoreBackupFile(event){
 function isOnline(){
   return navigator.onLine !== false;
 }
+/* کردنەوەی مۆداڵی لیستی باکئەپی خۆکار */
+function openAutoBackupsModal(){
+  openModal('autoBackupsModal');
+  renderAutoBackupsListUI();
+}
+async function renderAutoBackupsListUI(){
+  const wrap = document.getElementById('autoBackupsList');
+  if(!wrap) return;
+  wrap.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0;">بارکردن...</div>';
+  const keys = await listAutoBackupKeys();
+  if(!keys.length){
+    wrap.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0;">هیچ باکئەپێکی خۆکار نییە هێشتا</div>';
+    return;
+  }
+  wrap.innerHTML = keys.map(k=>`
+    <div class="listItem">
+      <div class="info"><b>${formatChangeLogTime(k)}</b><span>باکئەپی خۆکار</span></div>
+      <div class="btns"><button class="btn btn-outline btn-sm" onclick="restoreFromAutoBackup('${k}')">🔁 گەڕاندنەوە</button></div>
+    </div>`).join('');
+}
+/* گەڕاندنەوەی داتابەیس لە یەکێک لە باکئەپە خۆکارەکان */
+async function restoreFromAutoBackup(key){
+  if(!confirm(`دڵنیایت لە گەڕاندنەوەی داتا بۆ کاتی ${formatChangeLogTime(key)}؟\n\nئەم کردارە هەموو داتای ئێستا (لەسەر ئەم ئامێرە و لە cloud) دەگۆڕێت بەو داتایەی لەو کاتەدا هەڵگیراوە. ناتوانرێت پاشگەز بێتەوە.`)) return;
+  try{
+    const bytes = await getAutoBackupBytes(key);
+    if(!bytes || !bytes.length){ alert('نەتوانرا ئەم باکئەپە بهێنرێتەوە'); return; }
+    let testDb;
+    try{
+      testDb = new SQL.Database(bytes);
+      testDb.exec('SELECT 1');
+      testDb.close();
+    }catch(verifyErr){
+      alert('ئەم باکئەپە زیانی پێگەیشتووە و ناتوانرێت بگەڕدرێتەوە.');
+      console.error('auto backup verify failed', verifyErr);
+      return;
+    }
+    loadDbFromBytes(bytes);
+    persistLocal();
+    refreshUIAfterSync();
+    closeModal('autoBackupsModal');
+    showToast('داتا گەڕایەوە، خەریکی ناردنە cloud...');
+    if(isOnline()){
+      const ok = await uploadToSupabase();
+      showToast(ok ? 'گەڕایەوە و نێردرا بۆ cloud ✓' : 'گەڕایەوە بۆ ئامێر، بەڵام ناردنی بۆ cloud سەرکەوتوو نەبوو. کاتێک ئینتەرنێت هەبێت "تازەکردنەوە ئێستا" لکە.');
+    }else{
+      markLocalDirty();
+      showToast('گەڕایەوە بۆ ئامێر. کاتێک ئینتەرنێت هەبێت خۆکارانە دەنێردرێت بۆ cloud.');
+    }
+  }catch(e){
+    console.error('restoreFromAutoBackup failed', e);
+    alert('کێشەیەک ڕوویدا لە گەڕاندنەوەی باکئەپ: ' + e.message);
+  }
+}
 function showOfflineOverlay(){
   const el = document.getElementById('offlineOverlay');
   if(el) el.classList.add('show');
@@ -1395,14 +1476,95 @@ function clearLocalDirty(){
 function openOfflineIdb(){
   return new Promise(resolve=>{
     if(!window.indexedDB){ resolve(null); return; }
-    const req = indexedDB.open(IDB_NAME, 1);
+    const req = indexedDB.open(IDB_NAME, 2);
     req.onupgradeneeded = ()=>{
       const idb = req.result;
       if(!idb.objectStoreNames.contains(IDB_STORE)) idb.createObjectStore(IDB_STORE);
+      if(!idb.objectStoreNames.contains(IDB_BACKUPS_STORE)) idb.createObjectStore(IDB_BACKUPS_STORE);
     };
     req.onsuccess = ()=> resolve(req.result);
     req.onerror = ()=> resolve(null);
   });
+}
+/* ======================================================================
+   باکئەپی خۆکار: جیاواز لە کاشی ئاسایی (att_db_bytes) کە هەر جارێک دەگۆڕدرێت،
+   ئێرە چەند وێنەی (snapshot) جیاواز بە کاتی جیاواز هەڵدەگیرێت لەناو IndexedDB،
+   تاکو ئەگەر داتا بە هەڵە یان بەهۆی هەر کێشەیەکی تر لەناوچوو، بتوانرێت
+   بگەڕدرێتەوە بۆ یەکێک لە کاتەکانی پێشوو — تەنانەت ئەگەر کاشی ئاساییش
+   پێش ئەوە بە داتای هەڵە نوێکرابێتەوە.
+   ====================================================================== */
+async function saveAutoBackupSnapshot(bytes){
+  const idb = await openOfflineIdb();
+  if(!idb) return false;
+  return new Promise(resolve=>{
+    try{
+      const key = new Date().toISOString();
+      const tx = idb.transaction(IDB_BACKUPS_STORE, 'readwrite');
+      tx.objectStore(IDB_BACKUPS_STORE).put(bytes, key);
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> resolve(false);
+    }catch(e){ resolve(false); }
+  });
+}
+async function listAutoBackupKeys(){
+  const idb = await openOfflineIdb();
+  if(!idb) return [];
+  return new Promise(resolve=>{
+    try{
+      const tx = idb.transaction(IDB_BACKUPS_STORE, 'readonly');
+      const req = tx.objectStore(IDB_BACKUPS_STORE).getAllKeys();
+      req.onsuccess = ()=> resolve((req.result||[]).slice().sort().reverse());
+      req.onerror = ()=> resolve([]);
+    }catch(e){ resolve([]); }
+  });
+}
+async function getAutoBackupBytes(key){
+  const idb = await openOfflineIdb();
+  if(!idb) return null;
+  return new Promise(resolve=>{
+    try{
+      const tx = idb.transaction(IDB_BACKUPS_STORE, 'readonly');
+      const req = tx.objectStore(IDB_BACKUPS_STORE).get(key);
+      req.onsuccess = ()=>{
+        const v = req.result;
+        if(!v){ resolve(null); return; }
+        resolve(v instanceof Uint8Array ? v : new Uint8Array(v));
+      };
+      req.onerror = ()=> resolve(null);
+    }catch(e){ resolve(null); }
+  });
+}
+async function deleteAutoBackupKey(key){
+  const idb = await openOfflineIdb();
+  if(!idb) return false;
+  return new Promise(resolve=>{
+    try{
+      const tx = idb.transaction(IDB_BACKUPS_STORE, 'readwrite');
+      tx.objectStore(IDB_BACKUPS_STORE).delete(key);
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> resolve(false);
+    }catch(e){ resolve(false); }
+  });
+}
+async function pruneAutoBackups(){
+  const keys = await listAutoBackupKeys(); // نوێترین لە سەرەوە
+  if(keys.length <= AUTO_BACKUP_KEEP) return;
+  for(const k of keys.slice(AUTO_BACKUP_KEEP)) await deleteAutoBackupKey(k);
+}
+// هەر کاتێک persistLocal بانگ دەکرێت، ئەم فانکشنە پشکنین دەکات ئایا کاتی
+// باکئەپی خۆکاری داهاتوو هاتووە یان نا (زۆرترین جارێک لە هەر 6 کاتژمێردا)،
+// بۆ ئەوەی زۆر جار داتا دووبارە هەڵنەگیرێت
+async function maybeTakeAutoBackup(bytes){
+  try{
+    const last = parseInt(localStorage.getItem('att_last_autobackup_at')||'0', 10);
+    const now = Date.now();
+    if(now - last < AUTO_BACKUP_MIN_INTERVAL_MS) return;
+    const ok = await saveAutoBackupSnapshot(bytes);
+    if(ok){
+      localStorage.setItem('att_last_autobackup_at', String(now));
+      pruneAutoBackups();
+    }
+  }catch(e){ console.warn('auto backup failed', e); }
 }
 async function idbPutBytes(bytes){
   const idb = await openOfflineIdb();
@@ -1448,6 +1610,7 @@ function persistLocal(fromRemote){
     const bytes = exportDbBytes();
     persistLocalStorageBytes(bytes);
     idbPutBytes(bytes).catch(()=>{});
+    maybeTakeAutoBackup(bytes).catch(()=>{});
     if(fromRemote) clearLocalDirty();
     else markLocalDirty();
   }catch(e){ console.warn('persistLocal failed', e); }
