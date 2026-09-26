@@ -3081,7 +3081,7 @@ function checkDailyReminder(){
   banner.style.display='flex';
   banner.className = 'dailyReminderBanner' + (urgent ? ' urgent' : '');
   document.getElementById('dailyReminderText').textContent =
-    `⚠️ داتای ئامادەبوونی ئەمڕۆ${deptName?(' بۆ «'+deptName+'»'):''} هێشتا تۆمار نەکراوە! ${formatRemainingMinutes(remain)} ماوە بۆ داخڵبونی کاتی دەستکاریکردن.`;
+    `⚠️ داتای ئامادەبوونی ئەمڕۆ${deptName?(' بۆ «'+deptName+'»'):''} هێشتا تۆمار نەکراوە! ${formatRemainingMinutes(remain)} ماوە بۆ کاتی تازەکردنەوە.`;
 
   maybeNotifyOnce('open', currentDeptId, effDate,
     '⚠️ داتای ئەمڕۆ تۆمار نەکراوە',
@@ -3089,7 +3089,7 @@ function checkDailyReminder(){
   if(urgent){
     maybeNotifyOnce('warn', currentDeptId, effDate,
       '⏰ کاتی داخبوون نزیک بووەتەوە',
-      `تەنها ${formatRemainingMinutes(remain)} ماوە بۆ داخڵبوونی کاتی دەستکاریکردنی ڕۆژانە.`);
+      `تەنها ${formatRemainingMinutes(remain)} ماوە بۆ کاتی تازەکردنەوە ڕۆژانە.`);
   }
 }
 
