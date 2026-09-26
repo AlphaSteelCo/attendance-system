@@ -881,7 +881,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         <h3 id="changeLogTitle">مێژووی گۆڕانکاری</h3>
         <button class="closeX" onclick="closeModal('changeLogModal')">✕</button>
       </div>
-      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین 200 گۆڕانکاری بۆ ئەم بەشە، نوێترین لە سەرەوە</div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین 10 گۆڕانکاری بۆ ئەم بەشە، نوێترین لە سەرەوە</div>
     </div>
     <div id="changeLogList" class="modalScrollList"></div>
   </div>
@@ -895,7 +895,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         <h3>باکئەپی خۆکار</h3>
         <button class="closeX" onclick="closeModal('autoBackupsModal')">✕</button>
       </div>
-      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین ١٠ باکئەپی خۆکار لەسەر ئەم ئامێرە، نوێترین لە سەرەوە</div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین ٢ باکئەپی خۆکار لەسەر ئەم ئامێرە، نوێترین لە سەرەوە</div>
     </div>
     <div id="autoBackupsList" class="modalScrollList"></div>
   </div>
@@ -1156,7 +1156,7 @@ let syncInFlight = false;
 const IDB_NAME = 'attendance_offline_db';
 const IDB_STORE = 'kv';
 const IDB_BACKUPS_STORE = 'backups';
-const AUTO_BACKUP_KEEP = 10; // دوایین چەند باکئەپێک هەڵدەگیرێت
+const AUTO_BACKUP_KEEP = 2; // دوایین چەند باکئەپێک هەڵدەگیرێت
 const AUTO_BACKUP_MIN_INTERVAL_MS = 6*60*60*1000; // زۆرترین جارێک لە هەر 6 کاتژمێردا
 
 const KURDISH_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1324,22 +1324,27 @@ function exportDbBytes(){
   return db.export();
 }
 
+/* داگرتنی هەر داتایەکی .sqlite (bytes) وەک فایل، بەکارهاتوو بۆ باکئەپی ئێستا و باکئەپی خۆکاریش */
+function downloadBytesAsSqlite(bytes, filenameStamp){
+  const blob = new Blob([bytes], {type:'application/x-sqlite3'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance_backup_${filenameStamp}.sqlite`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+}
+function nowStamp(){
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
 /* داگرتنی باکئەپی داتابەیس وەک فایلی .sqlite بۆ سەیڤکردن لەسەر مۆبایل/کۆمپیوتەر */
 function downloadDbBackup(){
   try{
-    const bytes = exportDbBytes();
-    const blob = new Blob([bytes], {type:'application/x-sqlite3'});
-    const url = URL.createObjectURL(blob);
-    const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance_backup_${stamp}.sqlite`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    downloadBytesAsSqlite(exportDbBytes(), nowStamp());
   }catch(e){
     console.error('downloadDbBackup failed', e);
     alert('کێشەیەک ڕوویدا لە داگرتنی باکئەپ: ' + e.message);
@@ -1414,8 +1419,45 @@ async function renderAutoBackupsListUI(){
   wrap.innerHTML = keys.map(k=>`
     <div class="listItem">
       <div class="info"><b>${formatChangeLogTime(k)}</b><span>باکئەپی خۆکار</span></div>
-      <div class="btns"><button class="btn btn-outline btn-sm" onclick="restoreFromAutoBackup('${k}')">🔁 گەڕاندنەوە</button></div>
+      <div class="btns">
+        <button class="btn btn-outline btn-sm" onclick="downloadAutoBackup('${k}')">⬇️</button>
+        <button class="btn btn-outline btn-sm" onclick="restoreFromAutoBackup('${k}')">🔁 گەڕاندنەوە</button>
+      </div>
     </div>`).join('');
+}
+/* داگرتنی یەک باکئەپی خۆکاری دیاریکراو وەک فایلی .sqlite، بەبێ ئەوەی داتابەیسی ئێستا بگۆڕدرێت */
+async function downloadAutoBackup(key){
+  try{
+    const bytes = await getAutoBackupBytes(key);
+    if(!bytes || !bytes.length){ alert('نەتوانرا ئەم باکئەپە بهێنرێتەوە'); return; }
+    const stamp = key.replace(/[:.]/g,'-');
+    downloadBytesAsSqlite(bytes, stamp);
+  }catch(e){
+    console.error('downloadAutoBackup failed', e);
+    alert('کێشەیەک ڕوویدا لە داگرتنی باکئەپ: ' + e.message);
+  }
+}
+/* داگرتنی یەکێک لە باکئەپە خۆکارەکان وەک فایلی .sqlite */
+async function downloadAutoBackup(key){
+  try{
+    const bytes = await getAutoBackupBytes(key);
+    if(!bytes || !bytes.length){ alert('نەتوانرا ئەم باکئەپە بهێنرێتەوە'); return; }
+    const blob = new Blob([bytes], {type:'application/x-sqlite3'});
+    const url = URL.createObjectURL(blob);
+    const d = new Date(key);
+    const pad = n => String(n).padStart(2,'0');
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_autobackup_${stamp}.sqlite`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  }catch(e){
+    console.error('downloadAutoBackup failed', e);
+    alert('کێشەیەک ڕوویدا لە داگرتنی باکئەپ: ' + e.message);
+  }
 }
 /* گەڕاندنەوەی داتابەیس لە یەکێک لە باکئەپە خۆکارەکان */
 async function restoreFromAutoBackup(key){
@@ -1712,9 +1754,9 @@ function logChangeEvent(deptId, action, entityType, entityName){
   }
   db.run(`INSERT INTO change_log (dept_id, action, entity_type, entity_name, actor, changed_at) VALUES (?,?,?,?,?,?)`,
     [deptId, action, entityType, entityName, actor, now]);
-  // بۆ ئەوەی داتابەیس زۆر گەورە نەبێت، تەنها دوایین 200 تۆمار بۆ هەر بەشێک هەڵدەگیرێت
+  // بۆ ئەوەی داتابەیس زۆر گەورە نەبێت، تەنها دوایین 10 تۆمار بۆ هەر بەشێک هەڵدەگیرێت
   db.run(`DELETE FROM change_log WHERE dept_id=? AND id NOT IN (
-    SELECT id FROM change_log WHERE dept_id=? ORDER BY id DESC LIMIT 200
+    SELECT id FROM change_log WHERE dept_id=? ORDER BY id DESC LIMIT 10
   )`, [deptId, deptId]);
 }
 // وەرگرتنی کورتەی جۆرەکانی گۆڕانکاری کە ئەمڕۆ بۆ ئەم بەشە ڕوویداوە (بۆ نیشاندان لەتەنیشت نیشانەی "ئەمڕۆ نوێکراوەتەوە")
@@ -1765,7 +1807,7 @@ function formatChangeLogTime(iso){
 function renderChangeLogList(deptId){
   const wrap = document.getElementById('changeLogList');
   if(!wrap) return;
-  const list = getChangeLogForDept(deptId, 200);
+  const list = getChangeLogForDept(deptId, 10);
   if(!list.length){
     wrap.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0;">هیچ گۆڕانکارییەک تۆمار نەکراوە</div>';
     return;
