@@ -497,6 +497,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .staleTag-green{background:#e6f6ea;color:#1a7f37;}
   .staleTag-yellow{background:#fff6dd;color:#9a6b00;}
   .staleTag-red{background:#fde8e8;color:#c0392b;}
+  /* دوگمەی ناردنی بیرخستنەوە بۆ سەرپەرشتیار لە ڕێگەی واتساپ، کاتێک داتای ئەمڕۆ تۆمار نەکراوە */
+  .waRemindBtn{
+    display:flex;align-items:center;gap:6px;width:100%;margin-top:6px;
+    background:linear-gradient(135deg,#25D366,#1fb959);color:#fff;border:none;border-radius:9px;
+    padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.15);
+  }
+  .waRemindBtn:active{filter:brightness(.92);}
 
   /* دروکردی هەڵبژاردنی بەش، بۆ ئەوەی بتوانین بادج بۆ هەر بەشێک نیشان بدەین */
   .deptPickerWrap{position:relative;}
@@ -863,6 +870,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
     <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <input class="miniInput" id="editDeptPhone" placeholder="ژمارەی واتساپی سەرپەرشتیار، بۆ نموونە 07501234567" inputmode="tel" style="text-align:center;">
     <div class="sectionTitle" style="margin-top:4px;">⏰ کاتی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیار</div>
     <div class="muted" style="font-size:11.5px;margin-bottom:8px;">کاتی دەستپێک دیاری بکە و پاشان چەند کاتژمێر دوای ئەوە کراوە بمێنێتەوە بۆ تۆمار/دەستکاریکردنی داتای ئەمڕۆ، ئینجا خۆکارانە قوفڵ دەبێت. <b>بۆ بەشی شەفتی شەو</b>: کاتی دەستپێک بکە کاتی دەستپێکی شەفتی شەو (وەک 19:00) و درێژایی کاتژمێرەکان بکە بۆ ئەو ماوەیەی پێویستە (وەک 8 یان 20 کاژمێر)، تۆماری شەوی دوێنێ خۆکارانە کراوە دەمێنێتەوە تا کۆتایی ئەو ماوەیە تەنانەت دوای نیوەشەویش. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px;">
@@ -876,7 +884,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       </div>
     </div>
     <div class="muted" style="font-size:11px;margin-bottom:10px;" id="editDeptWindowPreview"></div>
-    <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی/کات</button>
+    <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="saveDeptEdit()">💾 پاشەکەوتکردنی ناو/وشەی نهێنی/تەلەفۆن/کات</button>
     <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="openChangeLogModal(editingDeptId)">🕘 مێژووی گۆڕانکاری</button>
     <button class="btn btn-danger btn-sm" style="width:100%;margin-bottom:14px;" onclick="deleteDept()">🗑️ سڕینەوەی ئەم بەشە</button>
     <hr class="sep">
@@ -1201,7 +1209,7 @@ function createFreshDb(){
   db = new SQL.Database();
   db.run(`
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT, edit_start TEXT DEFAULT '00:00', edit_end TEXT DEFAULT '23:59', edit_duration_min INTEGER DEFAULT 1440);
+    CREATE TABLE departments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, password TEXT, edit_start TEXT DEFAULT '00:00', edit_end TEXT DEFAULT '23:59', edit_duration_min INTEGER DEFAULT 1440, phone TEXT);
     CREATE TABLE shifts (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, code TEXT, hours TEXT);
     CREATE TABLE employees (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER, name TEXT, emp_code TEXT, shift_type TEXT, hours TEXT);
     CREATE TABLE attendance (
@@ -1273,6 +1281,9 @@ function ensureSchema(){
         db.run(`UPDATE departments SET edit_duration_min=? WHERE id=?`,[dur,id]);
       });
     }
+  }
+  if(!deptColNames.includes('phone')){
+    db.run(`ALTER TABLE departments ADD COLUMN phone TEXT`);
   }
   const shiftCols = db.exec(`PRAGMA table_info(shifts)`);
   const hasHours = shiftCols.length && shiftCols[0].values.some(row => row[1] === 'hours');
@@ -1908,13 +1919,20 @@ function deptStalenessHtml(deptId){
   const today = new Date(); today.setHours(0,0,0,0);
   const todayTagsLabel = actionTagsLabel(getTodayActionTags(deptId));
   if(!last){
-    return `<span class="staleTag staleTag-red">هیچ ئامادەبوونێک تۆمار نەکراوە${todayTagsLabel}</span>`;
+    return `<span class="staleTag staleTag-red">هیچ ئامادەبوونێک تۆمار نەکراوە${todayTagsLabel}</span>` + waReminderBtnHtml(deptId);
   }
   last.setHours(0,0,0,0);
   const days = Math.round((today - last) / 86400000);
   if(days<=0) return `<span class="staleTag staleTag-green">ئەمڕۆ نوێکراوەتەوە${todayTagsLabel}</span>`;
-  if(days===1) return `<span class="staleTag staleTag-yellow">دوێنێ نوێکراوەتەوە${todayTagsLabel}</span>`;
-  return `<span class="staleTag staleTag-red">${days} ڕۆژە نوێ نەکراوەتەوە${todayTagsLabel}</span>`;
+  if(days===1) return `<span class="staleTag staleTag-yellow">دوێنێ نوێکراوەتەوە${todayTagsLabel}</span>` + waReminderBtnHtml(deptId);
+  return `<span class="staleTag staleTag-red">${days} ڕۆژە نوێ نەکراوەتەوە${todayTagsLabel}</span>` + waReminderBtnHtml(deptId);
+}
+// بانەری ناردنی بیرخستنەوە بە واتساپ بۆ سەرپەرشتیاری بەشەکە، تەنها کاتێک ژمارەی تەلەفۆنی زیادکراوە
+function waReminderBtnHtml(deptId){
+  const res = db.exec(`SELECT phone FROM departments WHERE id=${deptId}`);
+  const phone = res.length && res[0].values.length ? String(res[0].values[0][0]||'').trim() : '';
+  if(!phone) return '';
+  return `<button class="waRemindBtn" onclick="event.stopPropagation();sendDeptReminderWhatsApp(${deptId})">📤 ناردنی بیرخستنەوە بە واتساپ</button>`;
 }
 
 function refreshDeptChangeBadges(){
@@ -3337,6 +3355,29 @@ function saveDayData(){
   debouncedSync();
 }
 
+/* گۆڕینی ژمارەی تەلەفۆن بۆ فۆرماتی نێودەوڵەتی پێویست بۆ لینکی wa.me
+   (بۆ نموونە 07501234567 → 9647501234567). ئەگەر ژمارەکە پێشتر کۆدی وڵاتی هەبوو، وەک خۆی دەهێڵدرێتەوە. */
+function normalizePhoneForWhatsApp(raw){
+  let p = String(raw||'').replace(/[^\d]/g,'');
+  if(!p) return '';
+  if(p.startsWith('00')) p = p.slice(2);
+  if(p.startsWith('0')) p = '964' + p.slice(1);
+  else if(!p.startsWith('964')) p = '964' + p;
+  return p;
+}
+/* ناردنی نامەی بیرخستنەوە بۆ سەرپەرشتیاری بەشێکی دیاریکراو لە ڕێگەی واتساپ،
+   داوا لێی دەکات سیستەمی ئامادەبوون بۆ ئەمڕۆ تازە بکاتەوە */
+function sendDeptReminderWhatsApp(deptId){
+  const res = db.exec(`SELECT name, phone FROM departments WHERE id=${deptId}`);
+  if(!res.length || !res[0].values.length) return;
+  const [deptName, phoneRaw] = res[0].values[0];
+  const phone = normalizePhoneForWhatsApp(phoneRaw);
+  if(!phone){ showToast('📵 ژمارەی تەلەفۆنی سەرپەرشتیار زیاد نەکراوە'); return; }
+  const msg = `سڵاو بەڕێزم؛\nتکایە سیستەمی ئامادەبوون تازە بکەرەوە بۆ ئەمڕۆ لە کاتی خۆیدا 🙏\n(بەشی ${deptName})`;
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
 /* ناردنی ڕاپۆرتی ئامادەبوونی ڕۆژ بۆ سەرپەرشتیار لە ڕێگەی واتساپ */
 function shareDayReportWhatsApp(){
   const deptRes = db.exec(`SELECT name FROM departments WHERE id=${currentDeptId}`);
@@ -3530,12 +3571,13 @@ function addDepartment(){
 function openEditDept(id){
   editingDeptId = id;
   clearDeptChange(id);
-  const res = db.exec(`SELECT name,password,edit_start,edit_duration_min FROM departments WHERE id=${id}`);
-  const [name,pass,editStart,durMin] = res[0].values[0];
+  const res = db.exec(`SELECT name,password,edit_start,edit_duration_min,phone FROM departments WHERE id=${id}`);
+  const [name,pass,editStart,durMin,phone] = res[0].values[0];
   const d = (durMin===null||durMin===undefined) ? 1440 : durMin;
   document.getElementById('deptEditTitle').textContent = 'دەستکاریکردنی: '+name;
   document.getElementById('editDeptName').value = name;
   document.getElementById('editDeptPass').value = pass;
+  document.getElementById('editDeptPhone').value = phone || '';
   document.getElementById('editDeptEditStart').value = editStart || '00:00';
   document.getElementById('editDeptEditDuration').value = Math.round((d/60)*2)/2; // نزیکترین 0.5 کاژمێر
   updateDeptWindowPreview();
@@ -3547,12 +3589,13 @@ function saveDeptEdit(){
   const name = document.getElementById('editDeptName').value.trim();
   const pass = document.getElementById('editDeptPass').value.trim();
   if(!name||!pass) return;
+  const phone = document.getElementById('editDeptPhone').value.trim();
   const editStart = document.getElementById('editDeptEditStart').value || '00:00';
   let hours = parseFloat(document.getElementById('editDeptEditDuration').value);
   if(!hours || hours<=0) hours = 24;
   if(hours>24) hours = 24;
   const durationMin = Math.round(hours*60);
-  db.run(`UPDATE departments SET name=?, password=?, edit_start=?, edit_duration_min=? WHERE id=?`,[name,pass,editStart,durationMin,editingDeptId]);
+  db.run(`UPDATE departments SET name=?, password=?, edit_start=?, edit_duration_min=?, phone=? WHERE id=?`,[name,pass,editStart,durationMin,phone,editingDeptId]);
   persistLocal();
   bumpDeptChange(editingDeptId, 'Edit', 'بەش', name);
   fillDeptPicker();
