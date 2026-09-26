@@ -365,6 +365,24 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   }
   .dayCell.todayNotUpdated .num,
   .dayCell.todayNotUpdated .stats{color:#fff;}
+  /* بانەری ئاگادارکردنەوە: داتای ڕۆژانە هێشتا تۆمار نەکراوە */
+  .dailyReminderBanner{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;
+    padding:10px 12px;font-size:12.5px;font-weight:700;margin-bottom:12px;
+  }
+  .dailyReminderBanner.urgent{
+    background:#fdeaea;border-color:#e74c3c;color:#a3271e;
+    animation:dailyReminderPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes dailyReminderPulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(231,76,60,.35);}
+    50%{box-shadow:0 0 0 6px rgba(231,76,60,0);}
+  }
+  .dailyReminderBtn{
+    background:#fff;border:1.3px solid currentColor;color:inherit;border-radius:8px;
+    padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+  }
   @media(max-width:400px){
     .container{padding:10px 8px;}
     .card{padding:10px;}
@@ -617,6 +635,12 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   </header>
 
   <div class="container">
+
+    <!-- بانەری ئاگادارکردنەوە: داتای ڕۆژانە هێشتا تۆمار نەکراوە -->
+    <div id="dailyReminderBanner" class="dailyReminderBanner" style="display:none;">
+      <span id="dailyReminderText"></span>
+      <button type="button" class="dailyReminderBtn" id="dailyReminderNotifyBtn" onclick="enableDailyReminderNotifications()">🔔 چالاککردنی ئاگادارکردنەوە</button>
+    </div>
 
     <!-- Admin: browse all departments -->
     <div class="card" id="allDeptsBtnCard" style="display:none;">
@@ -2058,6 +2082,8 @@ function finishLogin(){
   renderMonthlyReport();
   refreshSyncStatusUI();
   maybeShowChangesModal();
+  updateDailyReminderNotifyBtn();
+  checkDailyReminder();
 }
 
 // دەسەڵاتی ئەدمینی سنووردار: 'add' | 'edit' | 'delete' — دەسەڵات بۆ هەر بەشێک جیاوازە
@@ -2434,6 +2460,7 @@ function renderCalendar(){
   grid.innerHTML='';
   if(!currentDeptId){
     grid.innerHTML = '<div class="muted" style="grid-column:1/-1;text-align:center;padding:20px;">هیچ بەشێک زیاد نەکراوە</div>';
+    checkDailyReminder();
     return;
   }
   const firstDay = new Date(selYear, selMonth, 1).getDay(); // 0=Sunday
@@ -2457,6 +2484,7 @@ function renderCalendar(){
   `);
 
   const now = new Date();
+  const effDate = getEffectiveEditDate(currentDeptId);
   for(let day=1; day<=daysInMonth; day++){
     const dow = new Date(selYear, selMonth, day).getDay();
     stmt.bind([selYear, selMonth+1, day, currentDeptId]);
@@ -2468,14 +2496,16 @@ function renderCalendar(){
     }
     stmt.reset();
 
-    const isRealToday = (day===now.getDate() && selMonth===now.getMonth() && selYear===now.getFullYear());
+    // ڕۆژی "ئێستا"ی دەستکاریکردن بەگوێرەی شەفتی شەو (نەک هەر ڕۆژی ساتی ئێستا)
+    const isEffToday = (day===effDate.getDate() && selMonth===effDate.getMonth() && selYear===effDate.getFullYear());
     const cell=document.createElement('div');
-    cell.className='dayCell'+(dow===5?' weekend':'')+(hasData?' filled':'')+((isRealToday && !hasData)?' todayNotUpdated':'');
+    cell.className='dayCell'+(dow===5?' weekend':'')+(hasData?' filled':'')+((isEffToday && !hasData)?' todayNotUpdated':'');
     cell.innerHTML = `<div class="num">${day}</div>` + (hasData?`<div class="stats"><span class="p">✓${p}</span><span class="a">✗${a}</span></div>`:'');
     cell.onclick = ()=>openDayModal(day);
     grid.appendChild(cell);
   }
   stmt.free();
+  checkDailyReminder();
 }
 
 function renderShiftsSummary(){
@@ -2967,6 +2997,100 @@ function updateDeptWindowPreview(){
   const endMin = (startMin+durationMin)%1440;
   const wraps = endMin < startMin;
   prev.textContent = `ℹ️ کراوەیە لە ${start} تا ${minutesToTime(endMin)}${wraps ? ' (ڕۆژی دواتر)' : ''}`;
+}
+
+/* ======================================================================
+   ئاگادارکردنەوەی سەرپەرشتیار: داتای ڕۆژانە هێشتا تۆمار نەکراوە
+   ====================================================================== */
+function formatRemainingMinutes(min){
+  min = Math.max(0, Math.round(min));
+  const h = Math.floor(min/60), m = min%60;
+  if(h<=0) return `${m} خولەک`;
+  if(m===0) return `${h} کاتژمێر`;
+  return `${h} کاتژمێر و ${m} خولەک`;
+}
+function sendBrowserNotification(title, body){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  try{
+    const n = new Notification(title, {body, tag:'daily-attendance-reminder'});
+    n.onclick = ()=>{ window.focus(); n.close(); };
+  }catch(e){ /* هەندێک وێبگەڕی مۆبایل Notification ڕاستەوخۆ پشتگیری ناکەن */ }
+}
+function dailyReminderStorageKey(kind, deptId, dateObj){
+  const y=dateObj.getFullYear(), m=dateObj.getMonth()+1, d=dateObj.getDate();
+  return `att_notif_${kind}_${deptId}_${y}-${m}-${d}`;
+}
+function maybeNotifyOnce(kind, deptId, dateObj, title, body){
+  const key = dailyReminderStorageKey(kind, deptId, dateObj);
+  if(localStorage.getItem(key)) return;
+  sendBrowserNotification(title, body);
+  localStorage.setItem(key, '1');
+}
+function updateDailyReminderNotifyBtn(){
+  const btn = document.getElementById('dailyReminderNotifyBtn');
+  if(!btn) return;
+  if(!('Notification' in window)){ btn.style.display='none'; return; }
+  if(Notification.permission==='granted'){ btn.style.display='none'; }
+  else if(Notification.permission==='denied'){
+    btn.style.display='inline-block'; btn.disabled=true; btn.textContent='🔕 ئاگادارکردنەوەی وێبگەڕ بلۆککراوە';
+  } else {
+    btn.style.display='inline-block'; btn.disabled=false; btn.textContent='🔔 چالاککردنی ئاگادارکردنەوە';
+  }
+}
+function enableDailyReminderNotifications(){
+  if(!('Notification' in window)){ showToast('ئەم وێبگەڕە پشتگیری ئاگادارکردنەوە ناکات'); return; }
+  Notification.requestPermission().then(()=>{
+    updateDailyReminderNotifyBtn();
+    checkDailyReminder();
+  });
+}
+// دەبینێت ئاخۆ داتای ئامادەبوونی ڕۆژی چالاکی سەرپەرشتیاری بەشی هەڵبژێردراو تۆمار کراوە یان نا،
+// و بانەری ئاگادارکردنەوە + ئاگادارکردنەوەی وێبگەڕ خۆکارانە بەڕێوە دەبات
+function checkDailyReminder(){
+  const banner = document.getElementById('dailyReminderBanner');
+  if(!banner) return;
+  updateDailyReminderNotifyBtn();
+  const isDeptLike = currentUser && (currentUser.role==='dept' || currentUser.role==='limited_admin');
+  if(!db || !isDeptLike || !currentDeptId || !hasPerm('daily', currentDeptId)){
+    banner.style.display='none';
+    return;
+  }
+  const {startMin, endMin, alwaysOpen} = computeDeptWindow(currentDeptId);
+  const within = isWithinDeptEditWindow(currentDeptId);
+  const effDate = getEffectiveEditDate(currentDeptId);
+  const y=effDate.getFullYear(), m=effDate.getMonth()+1, d=effDate.getDate();
+  const res = db.exec(`
+    SELECT COUNT(*) FROM employee_attendance ea
+    JOIN employees e ON e.id=ea.employee_id
+    WHERE e.dept_id=${currentDeptId} AND ea.year=${y} AND ea.month=${m} AND ea.day=${d}
+  `);
+  const hasData = !!(res.length && res[0].values.length && res[0].values[0][0] > 0);
+
+  if(hasData || !within || alwaysOpen){
+    banner.style.display='none';
+    return;
+  }
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  let remain = endMin - nowMin;
+  if(remain < 0) remain += 1440;
+  const urgent = remain <= 30;
+  const deptName = currentUser.role==='dept'
+    ? currentUser.deptName
+    : ((deptPickerOptions.find(o=>o.id===currentDeptId)||{}).name || '');
+  banner.style.display='flex';
+  banner.className = 'dailyReminderBanner' + (urgent ? ' urgent' : '');
+  document.getElementById('dailyReminderText').textContent =
+    `⚠️ داتای ئامادەبوونی ئەمڕۆ${deptName?(' بۆ «'+deptName+'»'):''} هێشتا تۆمار نەکراوە! ${formatRemainingMinutes(remain)} ماوە بۆ داخبوونی کاتی دەستکاریکردن.`;
+
+  maybeNotifyOnce('open', currentDeptId, effDate,
+    '⚠️ داتای ئەمڕۆ تۆمار نەکراوە',
+    `تکایە داتای ئامادەبوونی ئەمڕۆ تۆمار بکە، ${formatRemainingMinutes(remain)} ماوە بۆ داخبوونی کات.`);
+  if(urgent){
+    maybeNotifyOnce('warn', currentDeptId, effDate,
+      '⏰ کاتی داخبوون نزیک بووەتەوە',
+      `تەنها ${formatRemainingMinutes(remain)} ماوە بۆ داخبوونی کاتی دەستکاریکردنی ڕۆژانە.`);
+  }
 }
 
 
@@ -4079,6 +4203,10 @@ function hideBootLoader(){
     if(dayModalOpen) return; // دانانی چاوەڕوان، بۆ ئەوەی کاتێک خۆت تۆمار دەکەیت گۆڕانکارییەکەت نەسڕدرێتەوە
     syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
   }, 45000);
+
+  // هەموو خولەکێک پشکنینی بانەری ئاگادارکردنەوەی داتای ڕۆژانە (بێ پەیوەندی بە هەماهەنگی)
+  // تاکو خۆکارانە دەربکەوێت کاتێک کاتی دەستکاریکردن دەست پێدەکات یان نزیک دەبێتەوە لە داخبوون
+  setInterval(()=>{ checkDailyReminder(); }, 60000);
 
   syncWhenOnline(true).then(ok=>{ if(ok) refreshUIAfterSync(); });
 })();
