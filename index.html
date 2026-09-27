@@ -927,7 +927,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         <h3>باکئەپی خۆکار</h3>
         <button class="closeX" onclick="closeModal('autoBackupsModal')">✕</button>
       </div>
-      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین ٢ باکئەپی خۆکار لەسەر ئەم ئامێرە، نوێترین لە سەرەوە</div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px;">دوایین ٤ باکئەپی خۆکار لەسەر ئەم ئامێرە، نوێترین لە سەرەوە</div>
     </div>
     <div id="autoBackupsList" class="modalScrollList"></div>
   </div>
@@ -1188,7 +1188,7 @@ let syncInFlight = false;
 const IDB_NAME = 'attendance_offline_db';
 const IDB_STORE = 'kv';
 const IDB_BACKUPS_STORE = 'backups';
-const AUTO_BACKUP_KEEP = 2; // دوایین چەند باکئەپێک هەڵدەگیرێت
+const AUTO_BACKUP_KEEP = 4; // دوایین چەند باکئەپێک هەڵدەگیرێت
 const AUTO_BACKUP_MIN_INTERVAL_MS = 6*60*60*1000; // زۆرترین جارێک لە هەر 6 کاتژمێردا
 
 const KURDISH_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -4116,8 +4116,19 @@ function refreshUIAfterSync(){
 /* ======================================================================
    یارمەتیدەرەکان
    ====================================================================== */
-function openModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+let __modalZTop = 50;
+function openModal(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.style.zIndex = String(++__modalZTop);
+  el.classList.add('show');
+}
+function closeModal(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('show');
+  el.style.zIndex = '';
+}
 function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function showToast(msg){
   const t=document.getElementById('toast');
