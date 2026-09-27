@@ -1098,6 +1098,18 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         </div>
         <button class="btn btn-outline btn-sm" style="width:100%;" onclick="openAutoBackupsModal()">🕒 بینینی باکئەپە خۆکارەکان</button>
       </div>
+
+      <div class="settingsCard" id="oldDataCleanupCard">
+        <div class="settingsCardHead">
+          <span class="settingsIcon">🧹</span>
+          <div>
+            <div class="settingsCardTitle">سڕینەوەی داتای کۆن</div>
+            <div class="settingsCardDesc">داتای ڕۆژانە و ڕاپۆرتی مانگانەی کارمەندان کە زیاتر لە 4 مانگ لەمەوپێش تۆمارکراوە دەسڕدرێتەوە. ئەم دوگمەیە تەنها کاتێک چالاک دەبێت کە داتایەکی کۆنتر لە 4 مانگ هەبێت.</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="oldDataCleanupBtn" style="width:100%;" onclick="deleteOldAttendanceData()" disabled>🧹 سڕینەوەی داتای کۆنتر لە 4 مانگ</button>
+        <div class="settingsHint" id="oldDataCleanupHint">هیچ داتایەکی کۆنتر لە 4 مانگ نییە بۆ سڕینەوە.</div>
+      </div>
     </div>
 
     <div id="settingsTab_admin" style="display:none;">
@@ -1627,6 +1639,56 @@ async function pruneAutoBackups(){
   const keys = await listAutoBackupKeys(); // نوێترین لە سەرەوە
   if(keys.length <= AUTO_BACKUP_KEEP) return;
   for(const k of keys.slice(AUTO_BACKUP_KEEP)) await deleteAutoBackupKey(k);
+}
+
+/* ======================================================================
+   سڕینەوەی داتای کۆنی ڕۆژانە/ڕاپۆرتی مانگانە (زیاتر لە 4 مانگ)
+   ====================================================================== */
+const OLD_DATA_MONTHS = 4; // چەند مانگ هەڵدەگیرێت، کۆنتر لەمە دەسڕدرێتەوە
+function getOldDataCutoffYM(){
+  const d = new Date();
+  d.setDate(1); // بۆ خۆدزینەوە لە کێشەی زیادبوونی مانگ لە ڕۆژی 29-31دا
+  d.setMonth(d.getMonth() - OLD_DATA_MONTHS);
+  return d.getFullYear()*100 + (d.getMonth()+1); // شێوەی YYYYMM
+}
+function countOldAttendanceRecords(){
+  if(!db) return 0;
+  try{
+    const cutoff = getOldDataCutoffYM();
+    const res = db.exec(`SELECT COUNT(*) FROM employee_attendance WHERE (year*100+month) < ${cutoff}`);
+    return (res.length && res[0].values.length) ? res[0].values[0][0] : 0;
+  }catch(e){ console.error('countOldAttendanceRecords failed', e); return 0; }
+}
+function refreshOldDataCleanupUI(){
+  const btn = document.getElementById('oldDataCleanupBtn');
+  const hint = document.getElementById('oldDataCleanupHint');
+  if(!btn || !hint) return;
+  const count = countOldAttendanceRecords();
+  if(count > 0){
+    btn.disabled = false;
+    hint.textContent = `${count} تۆمار ئامادەن بۆ سڕینەوە (کۆنتر لە ${OLD_DATA_MONTHS} مانگ).`;
+  }else{
+    btn.disabled = true;
+    hint.textContent = `هیچ داتایەکی کۆنتر لە ${OLD_DATA_MONTHS} مانگ نییە بۆ سڕینەوە.`;
+  }
+}
+function deleteOldAttendanceData(){
+  const count = countOldAttendanceRecords();
+  if(count <= 0) return;
+  if(!confirm(`دڵنیایت لە سڕینەوەی ${count} تۆماری داتای ڕۆژانە/ڕاپۆرتی مانگانەی کارمەندان کە کۆنترن لە ${OLD_DATA_MONTHS} مانگ؟ ئەم کردارە هەڵناوەشێتەوە.`)) return;
+  try{
+    const cutoff = getOldDataCutoffYM();
+    db.run(`DELETE FROM employee_attendance WHERE (year*100+month) < ${cutoff}`);
+    persistLocal();
+    debouncedSync();
+    refreshOldDataCleanupUI();
+    if(typeof renderMonthlyReport === 'function') renderMonthlyReport();
+    if(typeof renderCalendar === 'function') renderCalendar();
+    showToast('داتای کۆن سڕایەوە ✓');
+  }catch(e){
+    console.error('deleteOldAttendanceData failed', e);
+    showToast('هەڵە ڕوویدا لە سڕینەوەی داتا ❌');
+  }
 }
 // هەر کاتێک persistLocal بانگ دەکرێت، ئەم فانکشنە پشکنین دەکات ئایا کاتی
 // باکئەپی خۆکاری داهاتوو هاتووە یان نا (زۆرترین جارێک لە هەر 6 کاتژمێردا)،
@@ -3841,6 +3903,7 @@ function submitAdminUnlock(){
   closeModal('adminUnlockModal');
   document.getElementById('supabaseKey').value = supabaseKey;
   refreshSyncStatusUI();
+  refreshOldDataCleanupUI();
   openModal('settingsModal');
 }
 function setSettingsTab(tab){
