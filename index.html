@@ -423,9 +423,6 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .empDayRow{
     display:flex;flex-direction:column;gap:8px;
     border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;
-    transform-origin:center center;
-    transition:transform .12s ease-out, opacity .12s ease-out;
-    will-change:transform;
   }
   .empInfoInline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .empNameInline{font-weight:700;font-size:13.5px;white-space:nowrap;}
@@ -3295,47 +3292,7 @@ function openDayModal(day){
   });
   updateDayLiveSummary();
   openModal('dayModal');
-  setTimeout(()=>applyCenterFocus('dayEmployeesList'), 80);
 }
-
-/* ======================================================================
-   گەورەکردنی ڕیکۆردی ناوەڕاست لە کاتی سکرۆڵکردن (سیستەمی پیکەر)
-   ====================================================================== */
-function initCenterFocusScroll(containerId, rowSelector){
-  const container = document.getElementById(containerId);
-  if(!container || container.__centerFocusInit) return;
-  container.__centerFocusInit = true;
-  let ticking = false;
-  function apply(){
-    ticking = false;
-    const rect = container.getBoundingClientRect();
-    if(rect.height <= 0) return;
-    const centerY = rect.top + rect.height/2;
-    const rows = container.querySelectorAll(rowSelector);
-    rows.forEach(row=>{
-      if(row.style.display === 'none') return;
-      const r = row.getBoundingClientRect();
-      const rowCenter = r.top + r.height/2;
-      const dist = Math.abs(rowCenter - centerY);
-      const maxDist = (rect.height/2) + (r.height/2 || 40);
-      const t = Math.max(0, 1 - dist/maxDist); // 1 لە ناوەڕاست، 0 لە قەراغەکان
-      const scale = 1 + t*0.07; // زۆرترین گەورەبوون لە ناوەڕاست
-      const opacity = 0.72 + t*0.28;
-      row.style.transform = `scale(${scale.toFixed(3)})`;
-      row.style.opacity = opacity.toFixed(2);
-    });
-  }
-  container.addEventListener('scroll', ()=>{
-    if(!ticking){ ticking = true; requestAnimationFrame(apply); }
-  }, {passive:true});
-  container.__centerFocusApply = apply;
-  apply();
-}
-function applyCenterFocus(containerId){
-  const container = document.getElementById(containerId);
-  if(container && container.__centerFocusApply) container.__centerFocusApply();
-}
-initCenterFocusScroll('dayEmployeesList', '.empDayRow');
 
 function filterDayEmployees(){
   const term = (document.getElementById('dayEmpSearch')?.value || '').trim().toLowerCase();
@@ -3346,7 +3303,6 @@ function filterDayEmployees(){
     const matchShift = shiftFilter==='all' || row.dataset.shift===shiftFilter;
     row.style.display = (matchTerm && matchShift) ? '' : 'none';
   });
-  applyCenterFocus('dayEmployeesList');
 }
 
 function setEmpDayStatus(eid, status){
