@@ -377,11 +377,20 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dayCell .a{color:var(--bad);}
   .dayCell.filled{border-color:var(--brand-dark);box-shadow:inset 0 0 0 1.5px var(--brand);}
   /* ڕۆژی ئەمڕۆ، ئەگەر هێشتا داتای ئامادەبوونی بۆ نەنووسراوە: سوور بکرێت تاکو لە دوورەوە دیار بێت */
+  /* چەند جارێک بە سوور فلاش دەکات، دواتر دەگەڕێتەوە بۆ ڕەنگی سپی ئاسایی */
   .dayCell.todayNotUpdated{
-    background:#e74c3c;border-color:#c0392b;box-shadow:inset 0 0 0 2px #c0392b;
+    animation:todayFlashBg .8s ease-in-out 4;
   }
   .dayCell.todayNotUpdated .num,
-  .dayCell.todayNotUpdated .stats{color:#fff;}
+  .dayCell.todayNotUpdated .stats{animation:todayFlashTxt .8s ease-in-out 4;}
+  @keyframes todayFlashBg{
+    0%,100%{background:#fff;border-color:var(--line);box-shadow:0 1px 2px rgba(0,0,0,.04);}
+    50%{background:#e74c3c;border-color:#c0392b;box-shadow:inset 0 0 0 2px #c0392b;}
+  }
+  @keyframes todayFlashTxt{
+    0%,100%{color:inherit;}
+    50%{color:#fff;}
+  }
   /* بانەری ئاگادارکردنەوە: داتای ڕۆژانە هێشتا تۆمار نەکراوە */
   .dailyReminderBanner{
     display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
