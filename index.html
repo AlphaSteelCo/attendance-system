@@ -311,6 +311,23 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .btn-sm{padding:8px 12px;font-size:13px;border-radius:8px;}
   #loginError{color:var(--bad);font-size:13px;margin-top:10px;min-height:16px;}
 
+  /* ---------- چوارگۆشەکانی ژمارەی نهێنی (PIN) ---------- */
+  .pinRow{display:flex;justify-content:center;gap:10px;direction:ltr;margin:6px 0 10px;}
+  .pinBox{
+    width:56px;height:64px;border-radius:14px;border:1.5px solid var(--line);background:#fafaf8;
+    font-size:26px;font-weight:800;text-align:center;outline:none;padding:0;color:var(--ink);
+    caret-color:transparent;transition:border-color .15s, background .15s, box-shadow .15s, transform .12s;
+  }
+  .pinBox:focus{border-color:var(--brand-dark);background:#fff;box-shadow:0 0 0 3px rgba(0,0,0,.06);transform:translateY(-1px);}
+  .pinBox.filled{border-color:var(--brand-dark);background:#fff;}
+  .pinRow.pin8{gap:6px;}
+  .pinRow.pin8 .pinBox{flex:1 1 0;min-width:0;max-width:38px;width:auto;height:50px;font-size:20px;border-radius:10px;}
+  .pinRow.shake{animation:pinShake .38s;}
+  @keyframes pinShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-8px);}40%{transform:translateX(8px);}60%{transform:translateX(-6px);}80%{transform:translateX(6px);}}
+  .pinRow.fail .pinBox{border-color:var(--bad);}
+  .pinEye{background:transparent;border:none;color:var(--muted);font-size:12.5px;padding:4px 10px;border-radius:8px;}
+  .pinEye:active{background:var(--bg);}
+
   /* ---------- App shell ---------- */
   #app{display:none;min-height:100vh;padding-bottom:30px;}
   header.topbar{
@@ -572,10 +589,11 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   <div class="loginCard">
     <div class="logo-badge">📋</div>
     <h1>سیستەمی ئامادەبوونی کارمەندان</h1>
-    <p>وشەی نهێنی خۆت بنووسە بۆ چوونەژوورەوە</p>
-    <div class="field">
-      <label>وشەی نهێنی</label>
-      <input type="password" id="loginPass" placeholder="••••••" autocomplete="off" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <p>٤ ژمارەی نهێنی خۆت بنووسە بۆ چوونەژوورەوە</p>
+    <div class="field" style="text-align:center;">
+      <div id="loginPinBoxes"></div>
+      <input type="hidden" id="loginPass">
+      <button type="button" class="pinEye" id="loginPinEye" onclick="togglePinVisibility('loginPinBoxes','loginPinEye')">👁️ پیشاندان</button>
     </div>
     <button class="btn btn-primary" onclick="doLogin()">چوونەژوورەوە</button>
     <div id="loginError"></div>
@@ -854,7 +872,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;deptsModal&#39;)">✕</button>
     </div>
     <input class="miniInput" id="newDeptName" placeholder="ناوی بەشی نوێ">
-    <input class="miniInput" id="newDeptPass" placeholder="وشەی نهێنی سەرپەرشتیار" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <input class="miniInput" id="newDeptPass" maxlength="4" placeholder="وشەی نهێنی سەرپەرشتیار" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="addDepartment()">➕ زیادکردنی بەش</button>
     <hr class="sep">
     <div id="deptsList"></div>
@@ -869,7 +887,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;deptEditModal&#39;)">✕</button>
     </div>
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
-    <input class="miniInput" id="editDeptPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <input class="miniInput" id="editDeptPass" maxlength="4" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <input class="miniInput" id="editDeptPhone" placeholder="ژمارەی واتساپی سەرپەرشتیار، بۆ نموونە 07501234567" inputmode="tel" style="text-align:center;">
     <div class="sectionTitle" style="margin-top:4px;">⏰ کاتی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیار</div>
     <div class="muted" style="font-size:11.5px;margin-bottom:8px;">کاتی دەستپێک دیاری بکە و پاشان چەند کاتژمێر دوای ئەوە کراوە بمێنێتەوە بۆ تۆمار/دەستکاریکردنی داتای ئەمڕۆ، ئینجا خۆکارانە قوفڵ دەبێت. <b>بۆ بەشی شەفتی شەو</b>: کاتی دەستپێک بکە کاتی دەستپێکی شەفتی شەو (وەک 19:00) و درێژایی کاتژمێرەکان بکە بۆ ئەو ماوەیەی پێویستە (وەک 8 یان 20 کاژمێر)، تۆماری شەوی دوێنێ خۆکارانە کراوە دەمێنێتەوە تا کۆتایی ئەو ماوەیە تەنانەت دوای نیوەشەویش. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
@@ -1001,10 +1019,11 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeAdminUnlock()">✕</button>
     </div>
     <div class="settingsIcon" style="width:52px;height:52px;font-size:22px;margin:4px auto 14px;">🛡️</div>
-    <p class="muted" style="font-size:13px;margin:0 0 16px;">وشەی نهێنی ئەدمین بنووسە بۆ کردنەوەی ڕێکخستنی سیستەم</p>
-    <div class="passWrap" style="text-align:right;">
-      <input class="miniInput" id="adminUnlockPass" type="password" placeholder="••••••" style="text-align:center;letter-spacing:6px;" autocomplete="off">
-      <button type="button" class="eyeToggle" id="unlockEyeBtn" title="پیشاندان" onclick="togglePassField('adminUnlockPass','unlockEyeBtn')">👁️</button>
+    <p class="muted" style="font-size:13px;margin:0 0 16px;">٨ ژمارەی نهێنی سوپەر ئەدمین بنووسە بۆ کردنەوەی ڕێکخستنی سیستەم</p>
+    <div style="text-align:center;">
+      <div id="adminUnlockPinBoxes"></div>
+      <input type="hidden" id="adminUnlockPass">
+      <button type="button" class="pinEye" id="unlockPinEye" onclick="togglePinVisibility('adminUnlockPinBoxes','unlockPinEye')">👁️ پیشاندان</button>
     </div>
     <div id="adminUnlockError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
     <button class="btn btn-primary" style="width:100%;" onclick="submitAdminUnlock()">🔓 کردنەوە</button>
@@ -1122,7 +1141,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
           </div>
         </div>
         <div class="passWrap">
-          <input class="miniInput" id="newAdminPass" type="password" placeholder="••••••" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:6px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+          <input class="miniInput" id="newAdminPass" type="password" maxlength="4" placeholder="••••" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:6px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
           <button type="button" class="eyeToggle" id="adminEyeBtn" title="پیشاندان" onclick="togglePassField('newAdminPass','adminEyeBtn')">👁️</button>
         </div>
         <button class="btn btn-outline" style="width:100%;" onclick="changeAdminPass()">💾 گۆڕین</button>
@@ -1163,7 +1182,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal('limitedAdminEditModal')">✕</button>
     </div>
     <input class="miniInput" id="laName" placeholder="ناوی ئەدمین">
-    <input class="miniInput" id="laPass" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <input class="miniInput" id="laPass" maxlength="4" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
 
     <div class="sectionTitle" style="margin-top:10px;">بەشەکان و دەسەڵاتی هەر بەشێک</div>
     <div class="muted" style="font-size:11.5px;margin-bottom:8px;">بەشێک هەڵبژێرە بۆ ئەوەی ئەم ئەدمینە ببینێت، پاشان دیاری بکە چ دەسەڵاتێکی تێدا هەبێت.</div>
@@ -2088,6 +2107,87 @@ function maybeShowChangesModal(){
 /* ======================================================================
    چوونەژوورەوە
    ====================================================================== */
+/* ======================================================================
+   چوارگۆشەی ژمارەی نهێنی (٤ بۆ چوونەژوورەوە، ٨ بۆ سوپەر ئەدمین)
+   ====================================================================== */
+function buildPinBoxes(hostId, hiddenId, count, onComplete){
+  const host = document.getElementById(hostId);
+  const hidden = document.getElementById(hiddenId);
+  if(!host || !hidden) return;
+  host.innerHTML = '';
+  host.className = 'pinRow' + (count > 4 ? ' pin8' : '');
+  const boxes = [];
+  const sync = ()=>{
+    hidden.value = boxes.map(b=>b.value).join('');
+    boxes.forEach(b=>b.classList.toggle('filled', !!b.value));
+    host.classList.remove('fail');
+  };
+  const maybeDone = ()=>{ if(hidden.value.length === count && typeof onComplete === 'function') onComplete(); };
+  for(let i=0;i<count;i++){
+    const b = document.createElement('input');
+    b.type = 'password';
+    b.inputMode = 'numeric';
+    b.maxLength = 1;
+    b.autocomplete = 'off';
+    b.className = 'pinBox';
+    b.setAttribute('aria-label', 'ژمارەی ' + (i+1));
+    b.addEventListener('focus', ()=>{ try{ b.select(); }catch(e){} });
+    b.addEventListener('input', ()=>{
+      const d = b.value.replace(/\D/g,'');
+      b.value = d.slice(-1);
+      if(b.value && i < count-1) boxes[i+1].focus();
+      sync();
+      maybeDone();
+    });
+    b.addEventListener('keydown', e=>{
+      if(e.key === 'Backspace'){
+        if(!b.value && i > 0){ boxes[i-1].value = ''; boxes[i-1].focus(); sync(); e.preventDefault(); }
+      }else if(e.key === 'ArrowLeft' && i > 0){ boxes[i-1].focus(); e.preventDefault(); }
+      else if(e.key === 'ArrowRight' && i < count-1){ boxes[i+1].focus(); e.preventDefault(); }
+      else if(e.key === 'Enter'){ maybeDone(); }
+    });
+    b.addEventListener('paste', e=>{
+      const txt = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g,'');
+      if(!txt) return;
+      e.preventDefault();
+      for(let k=0; k<txt.length && i+k<count; k++) boxes[i+k].value = txt[k];
+      boxes[Math.min(i+txt.length, count-1)].focus();
+      sync();
+      maybeDone();
+    });
+    boxes.push(b);
+    host.appendChild(b);
+  }
+  host.__pin = {boxes, hidden, sync};
+}
+function pinClear(hostId){
+  const host = document.getElementById(hostId);
+  if(!host || !host.__pin) return;
+  host.__pin.boxes.forEach(b=>{ b.value=''; });
+  host.__pin.sync();
+}
+function pinFocus(hostId){
+  const host = document.getElementById(hostId);
+  if(host && host.__pin) setTimeout(()=>host.__pin.boxes[0].focus(), 60);
+}
+function pinFail(hostId){
+  const host = document.getElementById(hostId);
+  if(!host || !host.__pin) return;
+  host.classList.add('fail');
+  host.classList.remove('shake'); void host.offsetWidth; host.classList.add('shake');
+  setTimeout(()=>{ pinClear(hostId); host.classList.remove('shake'); host.classList.add('fail'); host.__pin.boxes[0].focus(); }, 380);
+}
+function togglePinVisibility(hostId, btnId){
+  const host = document.getElementById(hostId);
+  const btn = document.getElementById(btnId);
+  if(!host || !host.__pin) return;
+  const show = host.__pin.boxes[0].type === 'password';
+  host.__pin.boxes.forEach(b=>{ b.type = show ? 'text' : 'password'; });
+  if(btn) btn.textContent = show ? '🙈 شاردنەوە' : '👁️ پیشاندان';
+}
+buildPinBoxes('loginPinBoxes', 'loginPass', 4, ()=>doLogin());
+buildPinBoxes('adminUnlockPinBoxes', 'adminUnlockPass', 8, ()=>submitAdminUnlock());
+
 async function doLogin(){
   const pass = document.getElementById('loginPass').value.trim();
   const errEl = document.getElementById('loginError');
@@ -2129,9 +2229,11 @@ async function doLogin(){
     return;
   }
   errEl.textContent='وشەی نهێنی هەڵەیە';
+  pinFail('loginPinBoxes');
 }
 
 function finishLogin(){
+  pinClear('loginPinBoxes');
   localStorage.setItem('att_last_role', JSON.stringify(currentUser));
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -2192,7 +2294,8 @@ function logout(){
   localStorage.removeItem('att_last_role');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('app').style.display='none';
-  document.getElementById('loginPass').value='';
+  pinClear('loginPinBoxes');
+  pinFocus('loginPinBoxes');
 }
 
 // کاتێک لاپەڕە Refresh دەکرێت، ئەگەر پێشتر چوونەژوورەوە کراوە، خۆکارانە بگەڕێوە
@@ -3881,10 +3984,10 @@ function deleteShift(id){
    ڕێکخستنەکان (ئەدمین)
    ====================================================================== */
 function openSettings(){
-  document.getElementById('adminUnlockPass').value = '';
+  pinClear('adminUnlockPinBoxes');
   document.getElementById('adminUnlockError').textContent = '';
   openModal('adminUnlockModal');
-  setTimeout(()=>{ const el=document.getElementById('adminUnlockPass'); if(el) el.focus(); }, 50);
+  pinFocus('adminUnlockPinBoxes');
 }
 function closeAdminUnlock(){
   closeModal('adminUnlockModal');
@@ -3896,11 +3999,11 @@ function submitAdminUnlock(){
   if(!input){ errEl.textContent='تکایە وشەی نهێنی بنووسە'; return; }
   if(input !== (adminPass + adminPass)){
     errEl.textContent='وشەی نهێنی هەڵەیە ❌';
-    document.getElementById('adminUnlockPass').value='';
-    document.getElementById('adminUnlockPass').focus();
+    pinFail('adminUnlockPinBoxes');
     return;
   }
   closeModal('adminUnlockModal');
+  pinClear('adminUnlockPinBoxes');
   document.getElementById('supabaseKey').value = supabaseKey;
   refreshSyncStatusUI();
   refreshOldDataCleanupUI();
@@ -3915,6 +4018,7 @@ function setSettingsTab(tab){
 function changeAdminPass(){
   const np = document.getElementById('newAdminPass').value.trim();
   if(!np){ showToast('وشەی نهێنی پێویستە'); return; }
+  if(!/^\d{4}$/.test(np)){ showToast('وشەی نهێنی دەبێت ٤ ژمارە بێت'); return; }
   setSetting('admin_password', np);
   document.getElementById('newAdminPass').value='';
   debouncedSync();
@@ -4267,6 +4371,7 @@ function hideBootLoader(){
   const restored = tryRestoreSession();
   if(!restored){
     document.getElementById('loginScreen').style.display='flex';
+    pinFocus('loginPinBoxes');
   }
   hideBootLoader();
 
