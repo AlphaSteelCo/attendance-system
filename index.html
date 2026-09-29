@@ -604,7 +604,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <input type="hidden" id="loginPass">
       <button type="button" class="pinEye" id="loginPinEye" onclick="togglePinVisibility('loginPinBoxes','loginPinEye')">👁️ پیشاندان</button>
     </div>
-    <button class="btn btn-primary" onclick="doLogin()">چوونەژوورەوە</button>
+    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()">چوونەژوورەوە</button>
     <div id="loginError"></div>
     <button type="button" id="addHomeBtn" class="btn btn-outline" style="width:100%;margin:10px 0 4px;" onclick="handleAddToHomeClick()">📲 زیادکردنی ئەپ بۆ شاشەی سەرەکی</button>
     <div id="addHomeManual" style="display:none;text-align:right;margin:0 0 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.9;color:var(--muted);">
@@ -2197,9 +2197,77 @@ function togglePinVisibility(hostId, btnId){
 buildPinBoxes('loginPinBoxes', 'loginPass', 4, ()=>doLogin());
 buildPinBoxes('adminUnlockPinBoxes', 'adminUnlockPass', 8, ()=>submitAdminUnlock());
 
-async function doLogin(){
-  const pass = document.getElementById('loginPass').value.trim();
+// --- قفڵکردنی هەوڵدانەوەی چوونەژوورەوە دوای چەند جار وشەی نهێنی هەڵە ---
+// ٤ جار هەڵە => ٣٠ چرکە قفڵ. ٣ جاری تر (٧ کۆی گشتی) => ١ خولەک. ٣ جاری تر (١٠ کۆی گشتی) => نیو سەعات.
+// دوای ئەوە هەر ٣ هەڵەیەکی تر دووبارە نیو سەعات قفڵی دەکات.
+const LOGIN_LOCK_STORAGE_KEY = 'att_login_lock_v1';
+function getLoginLockState(){
+  try{
+    const raw = localStorage.getItem(LOGIN_LOCK_STORAGE_KEY);
+    if(!raw) return {failCount:0, lockUntil:0};
+    const st = JSON.parse(raw);
+    return {failCount: st.failCount||0, lockUntil: st.lockUntil||0};
+  }catch(e){ return {failCount:0, lockUntil:0}; }
+}
+function saveLoginLockState(st){
+  try{ localStorage.setItem(LOGIN_LOCK_STORAGE_KEY, JSON.stringify(st)); }catch(e){}
+}
+function resetLoginLockState(){
+  saveLoginLockState({failCount:0, lockUntil:0});
+}
+function formatLockDuration(sec){
+  if(sec>=60) return Math.ceil(sec/60) + ' خولەک';
+  return sec + ' چرکە';
+}
+function registerLoginFailure(){
+  const st = getLoginLockState();
+  st.failCount = (st.failCount||0) + 1;
+  let lockSeconds = 0;
+  if(st.failCount>=4 && (st.failCount-4)%3===0){
+    const occurrence = Math.floor((st.failCount-4)/3)+1;
+    lockSeconds = occurrence===1 ? 30 : (occurrence===2 ? 60 : 1800);
+  }
+  if(lockSeconds>0) st.lockUntil = Date.now() + lockSeconds*1000;
+  saveLoginLockState(st);
+  return st;
+}
+function getLoginLockRemainingSeconds(){
+  const st = getLoginLockState();
+  const remain = Math.ceil((st.lockUntil - Date.now())/1000);
+  return remain>0 ? remain : 0;
+}
+// ئەگەر قفڵ کراو بێت، پەیام و دوگمە نوێ دەکاتەوە و true دەگەڕێنێتەوە
+function applyLoginLockUI(){
   const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  const remain = getLoginLockRemainingSeconds();
+  if(remain>0){
+    if(errEl) errEl.textContent = '🔒 هەوڵدانی زۆر بە هەڵە، تکایە '+formatLockDuration(remain)+' چاوەڕێ بکە';
+    if(btn) btn.disabled = true;
+    return true;
+  }
+  if(btn) btn.disabled = false;
+  return false;
+}
+setInterval(()=>{
+  const loginScreen = document.getElementById('loginScreen');
+  if(!loginScreen || loginScreen.style.display==='none') return;
+  if(getLoginLockRemainingSeconds()>0){
+    applyLoginLockUI();
+  } else {
+    const btn = document.getElementById('loginBtn');
+    if(btn && btn.disabled){
+      btn.disabled=false;
+      const errEl=document.getElementById('loginError');
+      if(errEl && errEl.textContent.indexOf('🔒')===0) errEl.textContent='';
+    }
+  }
+},1000);
+
+async function doLogin(){
+  const errEl = document.getElementById('loginError');
+  if(applyLoginLockUI()) return;
+  const pass = document.getElementById('loginPass').value.trim();
   errEl.textContent='';
   if(!pass){ errEl.textContent='تکایە وشەی نهێنی بنووسە'; return; }
   if(!db){ errEl.textContent='سیستەم هێشتا بار دەبێت، تکایە چەند چرکەیەک چاوەڕێ بکە...'; return; }
@@ -2207,6 +2275,7 @@ async function doLogin(){
   const adminPass = getSetting('admin_password');
   if(pass === adminPass){
     currentUser = {role:'admin'};
+    resetLoginLockState();
     finishLogin();
     return;
   }
@@ -2227,6 +2296,7 @@ async function doLogin(){
       return;
     }
     currentUser = {role:'limited_admin', adminId:id, name, deptIds, deptPerms};
+    resetLoginLockState();
     finishLogin();
     return;
   }
@@ -2234,11 +2304,15 @@ async function doLogin(){
   if(res.length && res[0].values.length){
     const [id,name] = res[0].values[0];
     currentUser = {role:'dept', deptId:id, deptName:name};
+    resetLoginLockState();
     finishLogin();
     return;
   }
-  errEl.textContent='وشەی نهێنی هەڵەیە';
+  registerLoginFailure();
   pinFail('loginPinBoxes');
+  if(!applyLoginLockUI()){
+    errEl.textContent='وشەی نهێنی هەڵەیە';
+  }
 }
 
 function finishLogin(){
@@ -2305,6 +2379,7 @@ function logout(){
   document.getElementById('app').style.display='none';
   pinClear('loginPinBoxes');
   pinFocus('loginPinBoxes');
+  applyLoginLockUI();
 }
 
 // کاتێک لاپەڕە Refresh دەکرێت، ئەگەر پێشتر چوونەژوورەوە کراوە، خۆکارانە بگەڕێوە
