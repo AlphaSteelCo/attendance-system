@@ -510,6 +510,63 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dayLockNote{background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
   .lateTimeInline{display:none;align-items:center;gap:4px;flex-shrink:0;}
   .lateTimeInline.show{display:flex;}
+
+  /* ---------- سکرینی جیاواز بۆ تۆمارکردنی یەک کارمەند (ڕۆژانە) ---------- */
+  .empInfoInline.tappable{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .empInfoInline.tappable .empNameInline{text-decoration:underline dotted;text-underline-offset:4px;}
+  .empInfoInline.tappable:active{opacity:.65;}
+  .empOpenHint{margin-inline-start:auto;color:var(--muted);font-size:20px;line-height:1;padding:0 4px;}
+  .focusOverlay{align-items:stretch;background:rgba(20,20,10,.55);}
+  .modal.focusModal{
+    max-width:100%;height:100%;max-height:none;border-radius:0;overflow:hidden;
+    display:flex;flex-direction:column;padding:0;animation:slideUp .2s ease-out;
+  }
+  @media(min-width:600px){
+    .focusOverlay{align-items:center;}
+    .modal.focusModal{max-width:520px;height:min(88vh, calc(var(--app-vh, 100vh) - 30px));border-radius:18px;}
+  }
+  .fcTop{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1.5px solid var(--line);flex:0 0 auto;}
+  .fcTop .fcDate{font-size:13px;font-weight:800;}
+  .fcTop .fcCount{font-size:12px;color:var(--muted);font-weight:700;}
+  .fcBody{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px 10px;}
+  .fcNameCard{text-align:center;background:var(--bg);border:1.5px solid var(--line);border-radius:16px;padding:16px 12px;margin-bottom:14px;}
+  .fcName{font-size:22px;font-weight:800;margin-bottom:8px;word-break:break-word;}
+  .fcBadges{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+  .fcLabel{font-size:12.5px;font-weight:800;color:var(--muted);margin:14px 0 8px;}
+  .fcStatusGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .fcStatusBtn{
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 4px;border-radius:14px;
+    border:2px solid var(--line);background:#fff;font-size:13px;font-weight:800;color:var(--muted);font-family:inherit;
+  }
+  .fcStatusBtn .fcEmoji{font-size:26px;line-height:1;}
+  .fcStatusBtn.on-present{background:var(--ok);border-color:var(--ok);color:#fff;}
+  .fcStatusBtn.on-late{background:#1565c0;border-color:#1565c0;color:#fff;}
+  .fcStatusBtn.on-absent{background:var(--bad);border-color:var(--bad);color:#fff;}
+  .fcStatusBtn:disabled{opacity:.55;}
+  .fcNeeds{background:#eaf3ff;border:1.5px solid #90c2f7;color:#1565c0;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:700;margin-top:10px;display:none;}
+  .fcNeeds.show{display:block;}
+  .fcTimes{display:none;margin-top:4px;}
+  .fcTimes.show{display:block;}
+  .fcTimeRow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .fcTimeBox label{display:block;font-size:12px;font-weight:700;color:#a25f08;margin-bottom:4px;text-align:center;}
+  .fcTimeBox input{
+    width:100%;box-sizing:border-box;padding:12px 6px;border-radius:12px;border:2px solid #c9760a;background:#fffaf2;
+    color:#a25f08;font-size:20px;font-weight:800;text-align:center;font-family:inherit;direction:ltr;
+  }
+  .fcChips{display:none;gap:5px;margin-top:6px;}
+  .fcChips.show{display:flex;}
+  .fcChips button{flex:1;padding:8px 0;border-radius:9px;border:1.5px solid var(--line);background:#f8f8f6;font-size:12px;font-weight:800;color:var(--ink);font-family:inherit;}
+  .fcChips button:active{background:#fff3e0;border-color:#c9760a;color:#a25f08;}
+  .fcNote textarea{
+    width:100%;min-height:90px;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;
+    font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;
+  }
+  .fcLock{background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:12px;display:none;}
+  .fcLock.show{display:block;}
+  .fcFoot{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));border-top:1.5px solid var(--line);flex:0 0 auto;background:#fff;}
+  .fcFoot .btn{padding:13px 8px;}
+  .fcFoot .fcNav{flex:0 0 28%;}
+  .fcFoot .btn:disabled{opacity:.4;}
   .noteBtn{padding:7px 8px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;}
   .noteBtn.has-note{background:#fff7d6;border-color:#dbd80f;color:#8a7c00;}
   .noteBox{margin-top:6px;display:none;}
@@ -859,6 +916,58 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="btn btn-primary" style="flex:1;" id="dayModalSaveBtn" onclick="saveDayData()">💾 هەڵگرتن</button>
       <button class="btn" style="flex:1;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن</button>
       <button class="btn" style="flex:1;background:#4a4a4a;color:#fff;" onclick="printDayReport()">🖨️ پرێنت</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Employee Focus Screen (تۆمارکردنی یەک کارمەند بەتەواوی) ===== -->
+<div class="overlay focusOverlay" id="empFocusModal">
+  <div class="modal focusModal">
+    <div class="fcTop">
+      <button class="closeX" onclick="closeEmpFocus()" title="داخستن">✕</button>
+      <div class="fcDate" id="fcDate"></div>
+      <div class="fcCount" id="fcCount"></div>
+    </div>
+    <div class="fcBody">
+      <div class="fcLock" id="fcLock"></div>
+      <div class="fcNameCard">
+        <div class="fcName" id="fcName"></div>
+        <div class="fcBadges" id="fcBadges"></div>
+      </div>
+
+      <div class="fcLabel" style="margin-top:0;">دۆخی ئامادەبوون</div>
+      <div class="fcStatusGrid">
+        <button type="button" class="fcStatusBtn" id="fcBtnPresent" onclick="fcSetStatus('present')"><span class="fcEmoji">✅</span>ئامادە</button>
+        <button type="button" class="fcStatusBtn" id="fcBtnLate" onclick="fcSetStatus('late')"><span class="fcEmoji">🕒</span>درەنگ</button>
+        <button type="button" class="fcStatusBtn" id="fcBtnAbsent" onclick="fcSetStatus('absent')"><span class="fcEmoji">❌</span>نەهاتوو</button>
+      </div>
+      <div class="fcNeeds" id="fcNeeds">هێشتا دۆخی ئامادەبوون دیاری نەکراوە، یەکێک لە سێ دوگمەکە هەڵبژێرە</div>
+
+      <div class="fcTimes" id="fcTimes">
+        <div class="fcLabel">کاتی درەنگ</div>
+        <div class="fcTimeRow">
+          <div class="fcTimeBox">
+            <label for="fcStart">کاتی هاتن</label>
+            <input type="text" id="fcStart" inputmode="numeric" autocomplete="off" placeholder="00:00" oninput="fcTimeInput('start',this)" onfocus="fcTimeInput('start',this)">
+            <div class="fcChips" id="fcChipsStart"></div>
+          </div>
+          <div class="fcTimeBox">
+            <label for="fcEnd">کاتی ڕۆشتن</label>
+            <input type="text" id="fcEnd" inputmode="numeric" autocomplete="off" placeholder="00:00" oninput="fcTimeInput('end',this)" onfocus="fcTimeInput('end',this)">
+            <div class="fcChips" id="fcChipsEnd"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fcLabel">✏️ نۆت (ئارەزوومەندانە)</div>
+      <div class="fcNote">
+        <textarea id="fcNote" placeholder="ڕوونکردنەوەیەک بۆ چەند وشەیەک..." oninput="fcNoteInput(this)"></textarea>
+      </div>
+    </div>
+    <div class="fcFoot">
+      <button type="button" class="btn btn-outline fcNav" id="fcPrevBtn" onclick="fcNav(-1)">→ پێشوو</button>
+      <button type="button" class="btn btn-primary" style="flex:1;" onclick="fcDone()">✓ تەواو</button>
+      <button type="button" class="btn btn-outline fcNav" id="fcNextBtn" onclick="fcNav(1)">دواتر ←</button>
     </div>
   </div>
 </div>
@@ -3530,11 +3639,12 @@ function openDayModal(day){
     const hoursBadge = hours ? `<span class="miniBadge">🕐 ${escapeHtml(hours)}</span>` : '';
     const hasNote = !!(dayNoteText[eid] && dayNoteText[eid].trim());
     row.innerHTML = `
-      <div class="empInfoInline">
+      <div class="empInfoInline tappable" onclick="openEmpFocus(${eid})" title="کرتە بکە بۆ تۆمارکردنی بەتەواوی">
         <b class="empNameInline">${escapeHtml(name)}</b>
         ${codeBadge}
         ${shiftBadge}
         ${hoursBadge}
+        <span class="empOpenHint">‹</span>
       </div>
       <div class="empActionsRow">
         <div class="lateTimeInline" id="lateTimeBox_${eid}">
@@ -3568,6 +3678,135 @@ function openDayModal(day){
   });
   updateDayLiveSummary();
   openModal('dayModal');
+}
+
+/* ======================================================================
+   سکرینی جیاواز بۆ تۆمارکردنی یەک کارمەند (لە لیستی ڕۆژانە)
+   هەمان state (dayAttendanceState / dayLateTimes / dayNoteText) بەکاردەهێنێت،
+   بۆیە دوگمەی «هەڵگرتن»ی لیستەکە هەمان داتا دەپاشەکەوت دەکات.
+   ====================================================================== */
+let fcEid = null;
+function fcVisibleEids(){
+  const out = [];
+  document.querySelectorAll('#dayEmployeesList .empDayRow').forEach(r=>{
+    if(r.style.display !== 'none') out.push(r.id.replace('empDayRow_',''));
+  });
+  return out;
+}
+function openEmpFocus(eid){
+  fcEid = String(eid);
+  const lock = document.getElementById('fcLock');
+  if(lock){
+    const src = document.getElementById('dayLockNote');
+    const txt = src ? src.textContent.trim() : '';
+    lock.textContent = txt;
+    lock.classList.toggle('show', !dayIsEditable && !!txt);
+  }
+  document.getElementById('fcDate').textContent = document.getElementById('dayModalTitle').textContent;
+  renderEmpFocus();
+  openModal('empFocusModal');
+}
+function closeEmpFocus(){
+  closeModal('empFocusModal');
+  const row = document.getElementById(`empDayRow_${fcEid}`);
+  if(row && row.scrollIntoView){ try{ row.scrollIntoView({block:'center'}); }catch(e){} }
+}
+function renderEmpFocus(){
+  const row = document.getElementById(`empDayRow_${fcEid}`);
+  if(!row) return;
+  const nameEl = row.querySelector('.empNameInline');
+  document.getElementById('fcName').textContent = nameEl ? nameEl.textContent : '';
+  document.getElementById('fcBadges').innerHTML = Array.from(row.querySelectorAll('.miniBadge')).map(b=>b.outerHTML).join('');
+  const list = fcVisibleEids();
+  const idx = list.indexOf(fcEid);
+  document.getElementById('fcCount').textContent = idx>=0 ? `${idx+1} لە ${list.length}` : '';
+  document.getElementById('fcPrevBtn').disabled = idx<=0;
+  document.getElementById('fcNextBtn').disabled = idx<0 || idx>=list.length-1;
+
+  const st = dayAttendanceState[fcEid];
+  const dis = !dayIsEditable;
+  [['fcBtnPresent','present','on-present'],['fcBtnLate','late','on-late'],['fcBtnAbsent','absent','on-absent']].forEach(([id,val,cls])=>{
+    const b = document.getElementById(id);
+    b.classList.toggle(cls, st===val);
+    b.disabled = dis;
+  });
+  document.getElementById('fcNeeds').classList.toggle('show', !st && dayIsEditable);
+  document.getElementById('fcTimes').classList.toggle('show', st==='late');
+
+  const t = dayLateTimes[fcEid] || {start:'',end:''};
+  const fs = document.getElementById('fcStart'), fe = document.getElementById('fcEnd');
+  fs.value = t.start || ''; fe.value = t.end || '';
+  fs.disabled = dis; fe.disabled = dis;
+  ['Start','End'].forEach(w=>{ const c=document.getElementById('fcChips'+w); c.classList.remove('show'); c.innerHTML=''; });
+
+  const note = document.getElementById('fcNote');
+  note.value = dayNoteText[fcEid] || '';
+  note.disabled = dis;
+}
+function fcSetStatus(status){
+  if(!dayIsEditable){ showToast('🔒 تەنها ئەدمین دەتوانێت ڕۆژانی تر دەستکاری بکات'); return; }
+  setEmpDayStatus(fcEid, status);
+  renderEmpFocus();
+  if(dayAttendanceState[fcEid]==='late'){
+    const t = dayLateTimes[fcEid] || {};
+    if(!t.start){ setTimeout(()=>{ const el=document.getElementById('fcStart'); if(el) el.focus(); }, 60); }
+  }
+}
+function fcTimeInput(which, el){
+  if(!dayLateTimes[fcEid]) dayLateTimes[fcEid] = {start:'', end:''};
+  dayLateTimes[fcEid][which] = el.value;
+  const rowInput = document.getElementById(`late${which==='start'?'Start':'End'}_${fcEid}`);
+  if(rowInput) rowInput.value = el.value;
+  const chips = document.getElementById('fcChips'+(which==='start'?'Start':'End'));
+  const digits = (el.value||'').replace(/[^0-9]/g,'');
+  if(!digits){ chips.classList.remove('show'); chips.innerHTML=''; return; }
+  let hour = parseInt(digits.slice(0,2),10);
+  if(isNaN(hour)) hour = parseInt(digits.slice(0,1),10);
+  if(isNaN(hour)){ chips.classList.remove('show'); chips.innerHTML=''; return; }
+  if(hour>23) hour = parseInt(digits.slice(0,1),10);
+  hour = Math.max(0, Math.min(23, hour));
+  const hh = String(hour).padStart(2,'0');
+  chips.innerHTML = ['00','15','30','45'].map(mm=>`<button type="button" onclick="fcPickTime('${which}','${hh}:${mm}')">${hh}:${mm}</button>`).join('');
+  chips.classList.add('show');
+}
+function fcPickTime(which, time){
+  if(!dayLateTimes[fcEid]) dayLateTimes[fcEid] = {start:'', end:''};
+  dayLateTimes[fcEid][which] = time;
+  const input = document.getElementById(which==='start' ? 'fcStart' : 'fcEnd');
+  if(input) input.value = time;
+  const rowInput = document.getElementById(`late${which==='start'?'Start':'End'}_${fcEid}`);
+  if(rowInput) rowInput.value = time;
+  const chips = document.getElementById('fcChips'+(which==='start'?'Start':'End'));
+  chips.classList.remove('show'); chips.innerHTML='';
+  if(which==='start'){ const e=document.getElementById('fcEnd'); if(e && !e.value) e.focus(); }
+}
+function fcNoteInput(el){
+  dayNoteText[fcEid] = el.value;
+  const has = !!(el.value && el.value.trim());
+  const rowTa = document.getElementById(`noteText_${fcEid}`);
+  if(rowTa) rowTa.value = el.value;
+  const btn = document.getElementById(`noteBtn_${fcEid}`);
+  if(btn) btn.classList.toggle('has-note', has);
+  const box = document.getElementById(`noteBox_${fcEid}`);
+  if(box) box.classList.toggle('show', has);
+}
+function fcNav(dir){
+  const list = fcVisibleEids();
+  const idx = list.indexOf(fcEid);
+  const ni = idx + dir;
+  if(idx<0 || ni<0 || ni>=list.length) return;
+  fcEid = list[ni];
+  renderEmpFocus();
+  const body = document.querySelector('#empFocusModal .fcBody');
+  if(body) body.scrollTop = 0;
+}
+function fcDone(){
+  if(dayIsEditable && !dayAttendanceState[fcEid]){
+    showToast('تکایە یەکێک لە (ئامادە / درەنگ / نەهاتوو) هەڵبژێرە');
+    document.getElementById('fcNeeds').classList.add('show');
+    return;
+  }
+  closeEmpFocus();
 }
 
 function filterDayEmployees(){
