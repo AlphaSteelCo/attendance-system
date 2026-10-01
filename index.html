@@ -327,6 +327,29 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .pinRow.fail .pinBox{border-color:var(--bad);}
   .pinEye{background:transparent;border:none;color:var(--muted);font-size:12.5px;padding:4px 10px;border-radius:8px;}
   .pinEye:active{background:var(--bg);}
+  .pinRow{position:relative;}
+  .pinRow.pinSm{gap:8px;}
+  .pinRow.pinSm .pinBox{width:46px;height:54px;font-size:22px;border-radius:12px;}
+  .pinField{text-align:center;margin-bottom:10px;}
+  .pinField .pinLabel{font-size:12px;color:var(--muted);margin-bottom:2px;}
+  /* دوای وشەی نهێنی ڕاست: هەموو خانەکان یەک دەگرن و نیشانەی ✓ی سەوز دروست دەبێت */
+  .pinRow.success{pointer-events:none;}
+  .pinRow.success .pinBox{
+    transition:transform .45s cubic-bezier(.6,0,.3,1), opacity .3s ease .12s, border-color .2s, background .2s;
+    transform:translateX(var(--tx,0px)) scale(.55);opacity:0;border-color:var(--ok);background:var(--ok-bg);
+  }
+  .pinOk{
+    position:absolute;left:50%;top:50%;width:56px;height:64px;margin:-32px 0 0 -28px;border-radius:14px;
+    border:2px solid var(--ok);background:var(--ok-bg);display:flex;align-items:center;justify-content:center;
+    opacity:0;transform:scale(.5);pointer-events:none;
+  }
+  .pinRow.pinSm .pinOk{width:46px;height:54px;margin:-27px 0 0 -23px;border-radius:12px;}
+  .pinOk svg{width:30px;height:30px;}
+  .pinOk path{stroke:var(--ok);stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;}
+  .pinRow.success .pinOk{animation:pinOkIn .4s cubic-bezier(.2,1.25,.4,1) .35s forwards;}
+  .pinRow.success .pinOk path{animation:pinCheckDraw .32s ease .72s forwards;}
+  @keyframes pinOkIn{to{opacity:1;transform:scale(1);}}
+  @keyframes pinCheckDraw{to{stroke-dashoffset:0;}}
 
   /* ---------- App shell ---------- */
   #app{display:none;min-height:100vh;padding-bottom:30px;}
@@ -899,7 +922,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;deptsModal&#39;)">✕</button>
     </div>
     <input class="miniInput" id="newDeptName" placeholder="ناوی بەشی نوێ">
-    <input class="miniInput" id="newDeptPass" maxlength="4" placeholder="وشەی نهێنی سەرپەرشتیار" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <div class="pinField"><div class="pinLabel">وشەی نهێنی سەرپەرشتیار (٤ ژمارە)</div><div id="newDeptPassBoxes"></div><input type="hidden" id="newDeptPass"><button type="button" class="pinEye" id="newDeptPassEye" onclick="togglePinVisibility('newDeptPassBoxes','newDeptPassEye')">👁️ پیشاندان</button></div>
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="addDepartment()">➕ زیادکردنی بەش</button>
     <hr class="sep">
     <div id="deptsList"></div>
@@ -914,7 +937,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal(&#39;deptEditModal&#39;)">✕</button>
     </div>
     <input class="miniInput" id="editDeptName" placeholder="ناوی بەش">
-    <input class="miniInput" id="editDeptPass" maxlength="4" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <div class="pinField"><div class="pinLabel">وشەی نهێنی (٤ ژمارە)</div><div id="editDeptPassBoxes"></div><input type="hidden" id="editDeptPass"><button type="button" class="pinEye" id="editDeptPassEye" onclick="togglePinVisibility('editDeptPassBoxes','editDeptPassEye')">👁️ پیشاندان</button></div>
     <input class="miniInput" id="editDeptPhone" placeholder="ژمارەی واتساپی سەرپەرشتیار، بۆ نموونە 07501234567" inputmode="tel" style="text-align:center;">
     <div class="sectionTitle" style="margin-top:4px;">⏰ کاتی دەستکاریکردنی ڕۆژانە بۆ سەرپەرشتیار</div>
     <div class="muted" style="font-size:11.5px;margin-bottom:8px;">کاتی دەستپێک دیاری بکە و پاشان چەند کاتژمێر دوای ئەوە کراوە بمێنێتەوە بۆ تۆمار/دەستکاریکردنی داتای ئەمڕۆ، ئینجا خۆکارانە قوفڵ دەبێت. <b>بۆ بەشی شەفتی شەو</b>: کاتی دەستپێک بکە کاتی دەستپێکی شەفتی شەو (وەک 19:00) و درێژایی کاتژمێرەکان بکە بۆ ئەو ماوەیەی پێویستە (وەک 8 یان 20 کاژمێر)، تۆماری شەوی دوێنێ خۆکارانە کراوە دەمێنێتەوە تا کۆتایی ئەو ماوەیە تەنانەت دوای نیوەشەویش. سوپەر ئەدمین هەمیشە دەسەڵاتی تەواوی هەیە.</div>
@@ -1066,10 +1089,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div class="settingsIcon" style="width:52px;height:52px;font-size:22px;margin:4px auto 14px;background:#fdecea;color:var(--bad);">🗑️</div>
     <p class="muted" style="font-size:13px;margin:0 0 4px;">دڵنیایت لە سڕینەوەی <b id="deleteEmpNameLabel"></b>؟</p>
     <p class="muted" style="font-size:12px;margin:0 0 16px;">ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی بەشەکە بنووسە بۆ دووپاتکردنەوە</p>
-    <div class="passWrap" style="text-align:right;">
-      <input class="miniInput" id="deleteEmpPass" type="password" placeholder="••••••" style="text-align:center;letter-spacing:6px;" autocomplete="off">
-      <button type="button" class="eyeToggle" id="deleteEmpEyeBtn" title="پیشاندان" onclick="togglePassField('deleteEmpPass','deleteEmpEyeBtn')">👁️</button>
-    </div>
+    <div class="pinField"><div id="deleteEmpPassBoxes"></div><input type="hidden" id="deleteEmpPass"><button type="button" class="pinEye" id="deleteEmpPassEye" onclick="togglePinVisibility('deleteEmpPassBoxes','deleteEmpPassEye')">👁️ پیشاندان</button></div>
     <div id="deleteEmpError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-outline" style="flex:1;" onclick="closeModal('deleteEmployeeConfirmModal')">پاشگەزبوونەوە</button>
@@ -1167,10 +1187,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
             <div class="settingsCardDesc">وشەی نهێنی نوێ دابنێ بۆ چوونەژوورەوەی ئەدمین.</div>
           </div>
         </div>
-        <div class="passWrap">
-          <input class="miniInput" id="newAdminPass" type="password" maxlength="4" placeholder="••••" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:6px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-          <button type="button" class="eyeToggle" id="adminEyeBtn" title="پیشاندان" onclick="togglePassField('newAdminPass','adminEyeBtn')">👁️</button>
-        </div>
+        <div class="pinField"><div id="newAdminPassBoxes"></div><input type="hidden" id="newAdminPass"><button type="button" class="pinEye" id="newAdminPassEye" onclick="togglePinVisibility('newAdminPassBoxes','newAdminPassEye')">👁️ پیشاندان</button></div>
         <button class="btn btn-outline" style="width:100%;" onclick="changeAdminPass()">💾 گۆڕین</button>
       </div>
 
@@ -1209,7 +1226,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal('limitedAdminEditModal')">✕</button>
     </div>
     <input class="miniInput" id="laName" placeholder="ناوی ئەدمین">
-    <input class="miniInput" id="laPass" maxlength="4" placeholder="وشەی نهێنی" inputmode="numeric" pattern="[0-9]*" style="text-align:center;letter-spacing:3px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <div class="pinField"><div class="pinLabel">وشەی نهێنی (٤ ژمارە)</div><div id="laPassBoxes"></div><input type="hidden" id="laPass"><button type="button" class="pinEye" id="laPassEye" onclick="togglePinVisibility('laPassBoxes','laPassEye')">👁️ پیشاندان</button></div>
 
     <div class="sectionTitle" style="margin-top:10px;">بەشەکان و دەسەڵاتی هەر بەشێک</div>
     <div class="muted" style="font-size:11.5px;margin-bottom:8px;">بەشێک هەڵبژێرە بۆ ئەوەی ئەم ئەدمینە ببینێت، پاشان دیاری بکە چ دەسەڵاتێکی تێدا هەبێت.</div>
@@ -2137,15 +2154,19 @@ function maybeShowChangesModal(){
 /* ======================================================================
    چوارگۆشەی ژمارەی نهێنی (٤ بۆ چوونەژوورەوە، ٨ بۆ سوپەر ئەدمین)
    ====================================================================== */
-function buildPinBoxes(hostId, hiddenId, count, onComplete){
+function buildPinBoxes(hostId, hiddenId, count, onComplete, opts){
+  opts = opts || {};
   const host = document.getElementById(hostId);
   const hidden = document.getElementById(hiddenId);
   if(!host || !hidden) return;
   host.innerHTML = '';
-  host.className = 'pinRow' + (count > 4 ? ' pin8' : '');
+  host.className = 'pinRow' + (count > 4 ? ' pin8' : '') + (opts.small ? ' pinSm' : '');
   const boxes = [];
+  // هەمان hidden input وەک پێشوو کار دەکات (.value بخوێنرێتەوە/بنووسرێت)، بەڵام خانەکانیش لەگەڵ دەگۆڕێن
+  const nativeDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  const setHidden = v=>nativeDesc.set.call(hidden, v);
   const sync = ()=>{
-    hidden.value = boxes.map(b=>b.value).join('');
+    setHidden(boxes.map(b=>b.value).join(''));
     boxes.forEach(b=>b.classList.toggle('filled', !!b.value));
     host.classList.remove('fail');
   };
@@ -2185,13 +2206,48 @@ function buildPinBoxes(hostId, hiddenId, count, onComplete){
     boxes.push(b);
     host.appendChild(b);
   }
+  // خانەی سەوزی یەکگرتوو + نیشانەی ✓ (تەنها دوای سەرکەوتن دەردەکەوێت)
+  const ok = document.createElement('div');
+  ok.className = 'pinOk';
+  ok.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  host.appendChild(ok);
+
+  Object.defineProperty(hidden, 'value', {
+    configurable: true,
+    get(){ return nativeDesc.get.call(hidden); },
+    set(v){
+      const str = String(v==null ? '' : v);
+      setHidden(str);
+      const digits = str.replace(/\D/g,'');
+      boxes.forEach((bx,idx)=>{ bx.value = digits[idx] || ''; bx.classList.toggle('filled', !!bx.value); });
+      host.classList.remove('fail');
+    }
+  });
   host.__pin = {boxes, hidden, sync};
 }
 function pinClear(hostId){
   const host = document.getElementById(hostId);
   if(!host || !host.__pin) return;
-  host.__pin.boxes.forEach(b=>{ b.value=''; });
-  host.__pin.sync();
+  host.classList.remove('success','shake','fail');
+  host.__pin.boxes.forEach(b=>{ b.value=''; b.style.removeProperty('--tx'); });
+  host.__pin.hidden.value = '';
+}
+// وشەی نهێنی ڕاستە: خانەکان یەک دەگرن، ✓ی سەوز دەکێشرێت، پاشان cb جێبەجێ دەکرێت
+function pinSuccess(hostId, cb){
+  const host = document.getElementById(hostId);
+  if(!host || !host.__pin){ if(typeof cb === 'function') cb(); return; }
+  if(host.classList.contains('success')) return; // دووبارە جێبەجێ نەبێت
+  const boxes = host.__pin.boxes;
+  const hr = host.getBoundingClientRect();
+  const cx = hr.left + hr.width/2;
+  boxes.forEach(b=>{
+    try{ b.blur(); }catch(e){}
+    const r = b.getBoundingClientRect();
+    b.style.setProperty('--tx', (cx - (r.left + r.width/2)) + 'px');
+  });
+  host.classList.remove('fail','shake');
+  host.classList.add('success');
+  setTimeout(()=>{ if(typeof cb === 'function') cb(); }, 1150);
 }
 function pinFocus(hostId){
   const host = document.getElementById(hostId);
@@ -2214,6 +2270,12 @@ function togglePinVisibility(hostId, btnId){
 }
 buildPinBoxes('loginPinBoxes', 'loginPass', 4, ()=>doLogin());
 buildPinBoxes('adminUnlockPinBoxes', 'adminUnlockPass', 8, ()=>submitAdminUnlock());
+// هەمان ستایلی چوونەژوورەوە بۆ هەموو وشە نهێنیەکانی تر
+buildPinBoxes('deleteEmpPassBoxes', 'deleteEmpPass', 4, ()=>confirmDeleteEmployee());
+buildPinBoxes('newDeptPassBoxes', 'newDeptPass', 4, null, {small:true});
+buildPinBoxes('editDeptPassBoxes', 'editDeptPass', 4, null, {small:true});
+buildPinBoxes('laPassBoxes', 'laPass', 4, null, {small:true});
+buildPinBoxes('newAdminPassBoxes', 'newAdminPass', 4, null, {small:true});
 
 // --- قفڵکردنی هەوڵدانەوەی چوونەژوورەوە دوای چەند جار وشەی نهێنی هەڵە ---
 // ٤ جار هەڵە => ٣٠ چرکە قفڵ. ٣ جاری تر (٧ کۆی گشتی) => ١ خولەک. ٣ جاری تر (١٠ کۆی گشتی) => نیو سەعات.
@@ -2284,6 +2346,8 @@ setInterval(()=>{
 
 async function doLogin(){
   const errEl = document.getElementById('loginError');
+  const _loginHost = document.getElementById('loginPinBoxes');
+  if(_loginHost && _loginHost.classList.contains('success')) return;
   if(applyLoginLockUI()) return;
   const pass = document.getElementById('loginPass').value.trim();
   errEl.textContent='';
@@ -2294,7 +2358,7 @@ async function doLogin(){
   if(pass === adminPass){
     currentUser = {role:'admin'};
     resetLoginLockState();
-    finishLogin();
+    pinSuccess('loginPinBoxes', finishLogin);
     return;
   }
   const laRes = db.exec(`SELECT id,name FROM limited_admins WHERE password='${pass.replace(/'/g,"''")}'`);
@@ -2315,7 +2379,7 @@ async function doLogin(){
     }
     currentUser = {role:'limited_admin', adminId:id, name, deptIds, deptPerms};
     resetLoginLockState();
-    finishLogin();
+    pinSuccess('loginPinBoxes', finishLogin);
     return;
   }
   const res = db.exec(`SELECT id,name FROM departments WHERE password='${pass.replace(/'/g,"''")}'`);
@@ -2323,7 +2387,7 @@ async function doLogin(){
     const [id,name] = res[0].values[0];
     currentUser = {role:'dept', deptId:id, deptName:name};
     resetLoginLockState();
-    finishLogin();
+    pinSuccess('loginPinBoxes', finishLogin);
     return;
   }
   registerLoginFailure();
@@ -2984,34 +3048,41 @@ function deleteEmployee(){
   pendingDeleteDeptPass = confirmPass;
   const nameEl = document.getElementById('editEmpName');
   document.getElementById('deleteEmpNameLabel').textContent = nameEl ? nameEl.value : '';
-  document.getElementById('deleteEmpPass').value = '';
+  pinClear('deleteEmpPassBoxes');
   document.getElementById('deleteEmpError').textContent = '';
   closeModal('editEmployeeModal');
   openModal('deleteEmployeeConfirmModal');
-  setTimeout(()=>{ const el=document.getElementById('deleteEmpPass'); if(el) el.focus(); }, 50);
+  pinFocus('deleteEmpPassBoxes');
 }
 function confirmDeleteEmployee(){
+  const host = document.getElementById('deleteEmpPassBoxes');
+  if(host && host.classList.contains('success')) return;
   const pass = document.getElementById('deleteEmpPass').value;
   const errEl = document.getElementById('deleteEmpError');
+  if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
   const superAdminPass = getSetting('admin_password');
   const isValid = (pendingDeleteDeptPass!==null && pass === pendingDeleteDeptPass)
                 || (superAdminPass!=null && pass === superAdminPass);
   if(!isValid){
     errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
-    document.getElementById('deleteEmpPass').value='';
-    document.getElementById('deleteEmpPass').focus();
+    pinFail('deleteEmpPassBoxes');
     return;
   }
-  const delNameRes = db.exec(`SELECT name FROM employees WHERE id=${editingEmpId}`);
-  const delEmpName = (delNameRes.length && delNameRes[0].values.length) ? delNameRes[0].values[0][0] : '';
-  db.run(`DELETE FROM employee_attendance WHERE employee_id=${editingEmpId}`);
-  db.run(`DELETE FROM employees WHERE id=${editingEmpId}`);
-  persistLocal();
-  bumpDeptChange(editingEmpDeptId, 'Del', 'کارمەند', delEmpName);
-  closeModal('deleteEmployeeConfirmModal');
-  refreshAfterEmployeeChange();
-  debouncedSync();
-  showToast('کارمەند سڕایەوە');
+  errEl.textContent = '';
+  const empId = editingEmpId, empDeptId = editingEmpDeptId;
+  pinSuccess('deleteEmpPassBoxes', ()=>{
+    const delNameRes = db.exec(`SELECT name FROM employees WHERE id=${empId}`);
+    const delEmpName = (delNameRes.length && delNameRes[0].values.length) ? delNameRes[0].values[0][0] : '';
+    db.run(`DELETE FROM employee_attendance WHERE employee_id=${empId}`);
+    db.run(`DELETE FROM employees WHERE id=${empId}`);
+    persistLocal();
+    bumpDeptChange(empDeptId, 'Del', 'کارمەند', delEmpName);
+    closeModal('deleteEmployeeConfirmModal');
+    pinClear('deleteEmpPassBoxes');
+    refreshAfterEmployeeChange();
+    debouncedSync();
+    showToast('کارمەند سڕایەوە');
+  });
 }
 
 // دوای هەر گۆڕانکاریەک لە کارمەندێک، هەردوو دیمەنی سەرەکی و "هەموو بەشەکان" نوێ بکەرەوە
@@ -3640,7 +3711,7 @@ function sendDeptReminderWhatsApp(deptId){
   const [deptName, phoneRaw] = res[0].values[0];
   const phone = normalizePhoneForWhatsApp(phoneRaw);
   if(!phone){ showToast('📵 ژمارەی تەلەفۆنی سەرپەرشتیار زیاد نەکراوە'); return; }
-  const msg = `سڵاو بەڕێزم؛\nتکایە سیستەمی ئامادەبوون تازە بکەرەوە بۆ ئەمڕۆ لە کاتی خۆیدا 🙏\n(بەشی ${deptName})`;
+  const msg = `سڵاو بەرێز: ${deptName} تکایە داتای ئەمڕۆ تازەبکەرەوە بۆ ئەمڕۆ لە کاتی خۆیدا`;
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
 }
@@ -4104,12 +4175,15 @@ function submitAdminUnlock(){
     pinFail('adminUnlockPinBoxes');
     return;
   }
-  closeModal('adminUnlockModal');
-  pinClear('adminUnlockPinBoxes');
-  document.getElementById('supabaseKey').value = supabaseKey;
-  refreshSyncStatusUI();
-  refreshOldDataCleanupUI();
-  openModal('settingsModal');
+  errEl.textContent = '';
+  pinSuccess('adminUnlockPinBoxes', ()=>{
+    closeModal('adminUnlockModal');
+    pinClear('adminUnlockPinBoxes');
+    document.getElementById('supabaseKey').value = supabaseKey;
+    refreshSyncStatusUI();
+    refreshOldDataCleanupUI();
+    openModal('settingsModal');
+  });
 }
 function setSettingsTab(tab){
   document.getElementById('settingsTab_cloud').style.display = tab==='cloud'?'block':'none';
