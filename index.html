@@ -3711,7 +3711,7 @@ function sendDeptReminderWhatsApp(deptId){
   const [deptName, phoneRaw] = res[0].values[0];
   const phone = normalizePhoneForWhatsApp(phoneRaw);
   if(!phone){ showToast('📵 ژمارەی تەلەفۆنی سەرپەرشتیار زیاد نەکراوە'); return; }
-  const msg = `سڵاو بەرێز: ${deptName} تکایە داتای ئەمڕۆ تازەبکەرەوە بۆ ئەمڕۆ لە کاتی خۆیدا`;
+  const msg = `🙏\n(بەشی ${deptName})سڵاو بەڕێز؛\nتکایە سیستەمی ئامادەبوون تازە بکەرەوە بۆ ئەمڕۆ لە کاتی خۆیدا`;
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
 }
