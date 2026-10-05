@@ -506,6 +506,15 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .empToggleBtn.on-absent{background:var(--bad);border-color:var(--bad);color:#fff;}
   .empToggleBtn.on-late{background:#1565c0;border-color:#1565c0;color:#fff;}
   .empToggleBtn:disabled{opacity:.5;cursor:not-allowed;}
+  .dayBulkBar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f7f8f5;border:1.5px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px;}
+  .dayDeptName{font-size:14px;font-weight:800;}
+  .dayBulkChecks{display:flex;gap:8px;}
+  .bulkChk{display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:9px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-size:15px;line-height:1;}
+  .bulkChk input{width:17px;height:17px;margin:0;cursor:pointer;}
+  .bulkChk-present input{accent-color:var(--ok);}
+  .bulkChk-absent input{accent-color:var(--bad);}
+  .bulkChk.disabled{opacity:.5;cursor:not-allowed;}
+  .bulkChk.disabled input{cursor:not-allowed;}
   .empDayRow.needsSelection{background:#eaf3ff;border-color:#90c2f7;}
   .dayLockNote{background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
   .lateTimeInline{display:none;align-items:center;gap:4px;flex-shrink:0;}
@@ -899,6 +908,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <div class="modalHead">
         <h3 id="dayModalTitle">ڕۆژی --</h3>
         <button class="closeX" onclick="closeModal(&#39;dayModal&#39;)">✕</button>
+      </div>
+      <div class="dayBulkBar" id="dayBulkBar">
+        <b id="dayDeptName" class="dayDeptName"></b>
+        <div class="dayBulkChecks">
+          <label class="bulkChk bulkChk-present" title="هەموو ئامادە"><input type="checkbox" id="bulkChkPresent" onchange="bulkSetDayStatus('present',this.checked)"><span>✅</span></label>
+          <label class="bulkChk bulkChk-absent" title="هەموو نەهاتوو"><input type="checkbox" id="bulkChkAbsent" onchange="bulkSetDayStatus('absent',this.checked)"><span>❌</span></label>
+        </div>
       </div>
       <div id="dayLiveSummary" class="rowbetween" style="margin-bottom:10px;font-size:12.5px;"></div>
       <div id="dayLockNote" class="dayLockNote" style="display:none;">🔒 تەنها بۆ ئەمڕۆ دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.</div>
@@ -3396,6 +3412,7 @@ function processBulkAddEmployees(){
 let dayAttendanceState = {};
 let dayLateTimes = {};
 let dayNoteText = {};
+let dayBulkSnapshot = null;
 
 // پشکنینی ئەوەی کاتی ئێستا لەناو کاتی دیاریکراوی دەستکاریکردنی ڕۆژانەی ئەم بەشەدایە یان نا
 // (کاتی دەستپێک + چەند کاژمێر لە بەڕێوەبردنی بەشەکانەوە دیاری دەکرێت، بنەڕەت 24 کاژمێر واتە هەموو ڕۆژ کراوەیە)
@@ -3602,6 +3619,20 @@ function openDayModal(day){
     lockNote.style.display = dayIsEditable ? 'none' : 'flex';
   }
   if(saveBtn) saveBtn.style.display = dayIsEditable ? '' : 'none';
+  // ناوی بەش + چێکبۆکسی «هەموو ئامادە / هەموو نەهاتوو»
+  try{
+    const dnRes = db.exec(`SELECT name FROM departments WHERE id=${currentDeptId}`);
+    const dnEl = document.getElementById('dayDeptName');
+    if(dnEl) dnEl.textContent = (dnRes.length && dnRes[0].values.length) ? dnRes[0].values[0][0] : '';
+  }catch(e){}
+  dayBulkSnapshot = null;
+  ['bulkChkPresent','bulkChkAbsent'].forEach(id=>{
+    const c = document.getElementById(id);
+    if(!c) return;
+    c.checked = false;
+    c.disabled = !dayIsEditable;
+    c.parentElement.classList.toggle('disabled', !dayIsEditable);
+  });
 
   const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${currentDeptId} ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
   if(!empRes.length || !empRes[0].values.length){
@@ -3891,6 +3922,44 @@ document.addEventListener('click', (e)=>{
   document.querySelectorAll('.timeSuggest.show').forEach(box=>{ box.classList.remove('show'); box.innerHTML=''; });
 });
 
+// هەموو کارمەندان بکە بە ئامادە یان نەهاتوو (و بە پێچەوانەوە)
+function bulkSetDayStatus(status, checked){
+  const cp = document.getElementById('bulkChkPresent');
+  const ca = document.getElementById('bulkChkAbsent');
+  if(!dayIsEditable){
+    showToast('🔒 تەنها ئەدمین دەتوانێت ڕۆژانی تر دەستکاری بکات');
+    if(cp) cp.checked = false;
+    if(ca) ca.checked = false;
+    syncBulkChecks();
+    return;
+  }
+  const eids = Object.keys(dayAttendanceState);
+  if(checked){
+    // پاشەکەوتکردنی دۆخی پێشوو بۆ کاتی لابردنی چێک
+    if(!dayBulkSnapshot) dayBulkSnapshot = Object.assign({}, dayAttendanceState);
+    eids.forEach(eid=>{ dayAttendanceState[eid] = status; applyEmpRowStyle(eid); });
+    // چێکبۆکسەکەی تر بکوژێنەوە (ئامادە <-> نەهاتوو)
+    if(status==='present' && ca) ca.checked = false;
+    if(status==='absent' && cp) cp.checked = false;
+  }else{
+    // لابردنی چێک: گەڕانەوە بۆ دۆخی پێشوو (ئەگەر هەبێت)، ئەگەرنا دیارینەکراو
+    eids.forEach(eid=>{
+      dayAttendanceState[eid] = dayBulkSnapshot ? (dayBulkSnapshot[eid] ?? null) : null;
+      applyEmpRowStyle(eid);
+    });
+    dayBulkSnapshot = null;
+  }
+  updateDayLiveSummary();
+}
+function syncBulkChecks(){
+  const cp = document.getElementById('bulkChkPresent');
+  const ca = document.getElementById('bulkChkAbsent');
+  if(!cp || !ca) return;
+  const vals = Object.values(dayAttendanceState);
+  const all = vals.length > 0;
+  cp.checked = all && vals.every(v=>v==='present');
+  ca.checked = all && vals.every(v=>v==='absent');
+}
 function updateDayLiveSummary(){
   const vals = Object.values(dayAttendanceState);
   const p = vals.filter(v=>v==='present').length;
@@ -3900,6 +3969,7 @@ function updateDayLiveSummary(){
   document.getElementById('dayLiveSummary').innerHTML =
     `<span class="muted">کۆی کارمەندان: ${total}</span>
      <span><span class="p" style="font-weight:800;">✓ ${p}</span> &nbsp; <span style="font-weight:800;color:#a25f08;">🕒 ${l}</span> &nbsp; <span class="a" style="font-weight:800;">✗ ${a}</span></span>`;
+  syncBulkChecks();
 }
 
 function saveDayData(){
