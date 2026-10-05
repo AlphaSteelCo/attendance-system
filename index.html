@@ -912,7 +912,6 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <div class="dayBulkBar" id="dayBulkBar">
         <b id="dayDeptName" class="dayDeptName"></b>
         <div class="dayBulkChecks">
-          <label class="bulkChk bulkChk-present" title="هەموو ئامادە"><input type="checkbox" id="bulkChkPresent" onchange="bulkSetDayStatus('present',this.checked)"><span>✅</span></label>
           <label class="bulkChk bulkChk-absent" title="هەموو نەهاتوو"><input type="checkbox" id="bulkChkAbsent" onchange="bulkSetDayStatus('absent',this.checked)"><span>❌</span></label>
         </div>
       </div>
@@ -3623,10 +3622,12 @@ function openDayModal(day){
   try{
     const dnRes = db.exec(`SELECT name FROM departments WHERE id=${currentDeptId}`);
     const dnEl = document.getElementById('dayDeptName');
-    if(dnEl) dnEl.textContent = (dnRes.length && dnRes[0].values.length) ? dnRes[0].values[0][0] : '';
+    const dn = (dnRes.length && dnRes[0].values.length) ? dnRes[0].values[0][0] : '';
+    const dStr = `${selYear}/${String(selMonth+1).padStart(2,'0')}/${String(day).padStart(2,'0')}`;
+    if(dnEl) dnEl.textContent = `${dn} : ${dStr}`;
   }catch(e){}
   dayBulkSnapshot = null;
-  ['bulkChkPresent','bulkChkAbsent'].forEach(id=>{
+  ['bulkChkAbsent'].forEach(id=>{
     const c = document.getElementById(id);
     if(!c) return;
     c.checked = false;
@@ -3922,43 +3923,26 @@ document.addEventListener('click', (e)=>{
   document.querySelectorAll('.timeSuggest.show').forEach(box=>{ box.classList.remove('show'); box.innerHTML=''; });
 });
 
-// هەموو کارمەندان بکە بە ئامادە یان نەهاتوو (و بە پێچەوانەوە)
+// چێکبۆکسی نەهاتوو: دانان = هەموو نەهاتوو، لابردن = هەموو ئامادە
 function bulkSetDayStatus(status, checked){
-  const cp = document.getElementById('bulkChkPresent');
   const ca = document.getElementById('bulkChkAbsent');
   if(!dayIsEditable){
     showToast('🔒 تەنها ئەدمین دەتوانێت ڕۆژانی تر دەستکاری بکات');
-    if(cp) cp.checked = false;
-    if(ca) ca.checked = false;
     syncBulkChecks();
     return;
   }
-  const eids = Object.keys(dayAttendanceState);
-  if(checked){
-    // پاشەکەوتکردنی دۆخی پێشوو بۆ کاتی لابردنی چێک
-    if(!dayBulkSnapshot) dayBulkSnapshot = Object.assign({}, dayAttendanceState);
-    eids.forEach(eid=>{ dayAttendanceState[eid] = status; applyEmpRowStyle(eid); });
-    // چێکبۆکسەکەی تر بکوژێنەوە (ئامادە <-> نەهاتوو)
-    if(status==='present' && ca) ca.checked = false;
-    if(status==='absent' && cp) cp.checked = false;
-  }else{
-    // لابردنی چێک: گەڕانەوە بۆ دۆخی پێشوو (ئەگەر هەبێت)، ئەگەرنا دیارینەکراو
-    eids.forEach(eid=>{
-      dayAttendanceState[eid] = dayBulkSnapshot ? (dayBulkSnapshot[eid] ?? null) : null;
-      applyEmpRowStyle(eid);
-    });
-    dayBulkSnapshot = null;
-  }
+  const target = checked ? 'absent' : 'present';
+  Object.keys(dayAttendanceState).forEach(eid=>{
+    dayAttendanceState[eid] = target;
+    applyEmpRowStyle(eid);
+  });
   updateDayLiveSummary();
 }
 function syncBulkChecks(){
-  const cp = document.getElementById('bulkChkPresent');
   const ca = document.getElementById('bulkChkAbsent');
-  if(!cp || !ca) return;
+  if(!ca) return;
   const vals = Object.values(dayAttendanceState);
-  const all = vals.length > 0;
-  cp.checked = all && vals.every(v=>v==='present');
-  ca.checked = all && vals.every(v=>v==='absent');
+  ca.checked = vals.length > 0 && vals.every(v=>v==='absent');
 }
 function updateDayLiveSummary(){
   const vals = Object.values(dayAttendanceState);
