@@ -1,4 +1,4 @@
-# سیستەمی ئامادەبوونی کارمەندان — Supabase Edition
+# سیستەمی ئامادەبوونی کارمەندان 
 
 This package changes the existing browser SQLite app so the complete SQLite database is also saved in Supabase.
 
