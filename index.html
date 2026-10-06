@@ -1223,6 +1223,24 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   </div>
 </div>
 
+<div class="overlay" id="deleteDayConfirmModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div class="modalHead">
+      <h3>🗑️ سڕینەوەی تۆماری ڕۆژ</h3>
+      <button class="closeX" onclick="closeModal('deleteDayConfirmModal')">✕</button>
+    </div>
+    <div class="settingsIcon" style="width:52px;height:52px;font-size:22px;margin:4px auto 14px;background:#fdecea;color:var(--bad);">🗑️</div>
+    <p class="muted" style="font-size:13px;margin:0 0 4px;">دڵنیایت لە سڕینەوەی هەموو تۆمارەکانی <b id="deleteDayLabel"></b>؟</p>
+    <p class="muted" style="font-size:12px;margin:0 0 16px;">ڕۆژەکە دەگەڕێتەوە بۆ دۆخی پێشوو و ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی سوپەر ئەدمین بنووسە</p>
+    <div class="pinField"><div id="deleteDayPassBoxes"></div><input type="hidden" id="deleteDayPass"><button type="button" class="pinEye" id="deleteDayPassEye" onclick="togglePinVisibility('deleteDayPassBoxes','deleteDayPassEye')">👁️ پیشاندان</button></div>
+    <div id="deleteDayError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal('deleteDayConfirmModal')">پاشگەزبوونەوە</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="confirmDeleteDay()">🗑️ سڕینەوە</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="settingsModal">
 
   <div class="modal">
@@ -2401,6 +2419,7 @@ buildPinBoxes('loginPinBoxes', 'loginPass', 4, ()=>doLogin());
 buildPinBoxes('adminUnlockPinBoxes', 'adminUnlockPass', 8, ()=>submitAdminUnlock());
 // هەمان ستایلی چوونەژوورەوە بۆ هەموو وشە نهێنیەکانی تر
 buildPinBoxes('deleteEmpPassBoxes', 'deleteEmpPass', 4, ()=>confirmDeleteEmployee());
+buildPinBoxes('deleteDayPassBoxes', 'deleteDayPass', 4, ()=>confirmDeleteDay());
 buildPinBoxes('newDeptPassBoxes', 'newDeptPass', 4, null, {small:true});
 buildPinBoxes('editDeptPassBoxes', 'editDeptPass', 4, null, {small:true});
 buildPinBoxes('laPassBoxes', 'laPass', 4, null, {small:true});
@@ -3989,15 +4008,38 @@ function deleteDayData(){
     showToast('🔒 تەنها ئەدمین دەتوانێت ڕۆژانی تر دەستکاری بکات');
     return;
   }
-  if(!confirm('دڵنیایت لە سڕینەوەی هەموو تۆمارەکانی ئەم ڕۆژە؟\nڕۆژەکە دەگەڕێتەوە بۆ دۆخی پێشوو، وەک ئەوەی هیچ کاتێک تۆمار نەکرابێت.')) return;
-  db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id IN (SELECT id FROM employees WHERE dept_id=?)`,
-    [selYear, selMonth+1, selDay, currentDeptId]);
-  persistLocal();
-  bumpDeptChange(currentDeptId, 'Del', 'ئامادەبوونی ڕۆژانە', `ڕۆژی ${selDay}/${selMonth+1}/${selYear}`);
-  closeModal('dayModal');
-  renderCalendar();
-  showToast('تۆماری ئەم ڕۆژە سڕایەوە 🗑️');
-  debouncedSync();
+  document.getElementById('deleteDayLabel').textContent = `${selYear}/${String(selMonth+1).padStart(2,'0')}/${String(selDay).padStart(2,'0')}`;
+  pinClear('deleteDayPassBoxes');
+  document.getElementById('deleteDayError').textContent = '';
+  openModal('deleteDayConfirmModal');
+  pinFocus('deleteDayPassBoxes');
+}
+function confirmDeleteDay(){
+  const host = document.getElementById('deleteDayPassBoxes');
+  if(host && host.classList.contains('success')) return;
+  if(!(currentUser && currentUser.role==='admin') || !dayIsEditable) return;
+  const errEl = document.getElementById('deleteDayError');
+  const pass = document.getElementById('deleteDayPass').value;
+  if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
+  const superAdminPass = getSetting('admin_password');
+  if(superAdminPass==null || pass !== superAdminPass){
+    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
+    pinFail('deleteDayPassBoxes');
+    return;
+  }
+  errEl.textContent = '';
+  pinSuccess('deleteDayPassBoxes', ()=>{
+    db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id IN (SELECT id FROM employees WHERE dept_id=?)`,
+      [selYear, selMonth+1, selDay, currentDeptId]);
+    persistLocal();
+    bumpDeptChange(currentDeptId, 'Del', 'ئامادەبوونی ڕۆژانە', `ڕۆژی ${selDay}/${selMonth+1}/${selYear}`);
+    closeModal('deleteDayConfirmModal');
+    pinClear('deleteDayPassBoxes');
+    closeModal('dayModal');
+    renderCalendar();
+    showToast('تۆماری ئەم ڕۆژە سڕایەوە 🗑️');
+    debouncedSync();
+  });
 }
 
 function saveDayData(){
