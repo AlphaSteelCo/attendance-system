@@ -932,6 +932,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="btn" style="flex:1;background:#25D366;color:#fff;" onclick="shareDayReportWhatsApp()">📤 ناردن</button>
       <button class="btn" style="flex:1;background:#4a4a4a;color:#fff;" onclick="printDayReport()">🖨️ پرێنت</button>
     </div>
+    <button class="btn" id="dayModalDeleteBtn" style="display:none;width:100%;margin-top:8px;background:#fff;color:#c0392b;border:1.5px solid #c0392b;" onclick="deleteDayData()">🗑️ سڕینەوەی تۆماری ئەم ڕۆژە</button>
   </div>
 </div>
 
@@ -1496,6 +1497,10 @@ function ensureSchema(){
   }
   if(!empColNames.includes('hours')){
     db.run(`ALTER TABLE employees ADD COLUMN hours TEXT`);
+  }
+  // بەرواری گواستنەوەی کارمەند بۆ بەشی ئێستای (YYYYMMDD). پێش ئەو بەروارە لەم بەشەدا ناژمێردرێت
+  if(!empColNames.includes('dept_since')){
+    db.run(`ALTER TABLE employees ADD COLUMN dept_since INTEGER`);
   }
   const eaCols = db.exec(`PRAGMA table_info(employee_attendance)`);
   const eaColNames = eaCols.length ? eaCols[0].values.map(row => row[1]) : [];
@@ -2150,7 +2155,7 @@ function getDeptLastAttendanceDate(deptId){
   const res = db.exec(`
     SELECT MAX(year*10000+month*100+day) FROM employee_attendance ea
     JOIN employees e ON e.id = ea.employee_id
-    WHERE e.dept_id = ${deptId}
+    WHERE e.dept_id = ${deptId} AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
   `);
   const v = res.length ? res[0].values[0][0] : null;
   if(v==null) return null;
@@ -2800,7 +2805,7 @@ function renderMonthlyReport(){
       SUM(CASE WHEN ea.status IN ('absent','late') THEN 1 ELSE 0 END) as a
     FROM employees e
     LEFT JOIN employee_attendance ea
-      ON ea.employee_id = e.id AND ea.year=? AND ea.month=?
+      ON ea.employee_id = e.id AND ea.year=? AND ea.month=? AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
     WHERE e.dept_id=? AND (e.name LIKE ? OR e.emp_code LIKE ?)
     GROUP BY e.id
     HAVING a > 0
@@ -2821,7 +2826,7 @@ function renderMonthlyReport(){
     SELECT ea.employee_id, ea.day, ea.status
     FROM employee_attendance ea
     JOIN employees e ON e.id = ea.employee_id
-    WHERE e.dept_id=? AND ea.year=? AND ea.month=? AND ea.status IN ('absent','late')
+    WHERE e.dept_id=? AND ea.year=? AND ea.month=? AND ea.status IN ('absent','late') AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
     ORDER BY ea.day ASC
   `);
   daysStmt.bind([currentDeptId, selYear, selMonth+1]);
@@ -2873,7 +2878,7 @@ function openAbsenceDetail(employeeId){
     [codeLabel,shiftLabel, `مانگی ${KURDISH_MONTHS[selMonth]} ${selYear}`].filter(Boolean).join(' • ');
 
   const res = db.exec(
-    `SELECT day FROM employee_attendance WHERE employee_id=${employeeId} AND year=${selYear} AND month=${selMonth+1} AND status='absent' ORDER BY day ASC`
+    `SELECT day FROM employee_attendance WHERE employee_id=${employeeId} AND year=${selYear} AND month=${selMonth+1} AND status='absent' AND (year*10000+month*100+day) >= COALESCE((SELECT dept_since FROM employees WHERE id=${employeeId}),0) ORDER BY day ASC`
   );
   const listWrap = document.getElementById('absenceDetailList');
   listWrap.innerHTML='';
@@ -2952,7 +2957,7 @@ function renderCalendar(){
       SUM(CASE WHEN ea.status IN ('absent','late') THEN 1 ELSE 0 END) as a
     FROM employees e
     LEFT JOIN employee_attendance ea
-      ON ea.employee_id = e.id AND ea.year=? AND ea.month=? AND ea.day=?
+      ON ea.employee_id = e.id AND ea.year=? AND ea.month=? AND ea.day=? AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
     WHERE e.dept_id=?
   `);
 
@@ -3131,6 +3136,15 @@ function saveEmployeeEdit(){
     return;
   }
   db.run(`UPDATE employees SET name=?, emp_code=?, dept_id=?, shift_type=?, hours=? WHERE id=?`,[name,code,newDeptId,shiftType,hours,editingEmpId]);
+
+  // گواستنەوە بۆ بەشێکی تر: هیچ تۆمارێکی پێشوو ناگوازرێتەوە و بە ئامادە نایژمێرێت
+  if(newDeptId !== editingEmpDeptId){
+    let sinceD;
+    try{ sinceD = getEffectiveEditDate(newDeptId); }catch(e){ sinceD = new Date(); }
+    const sinceInt = sinceD.getFullYear()*10000 + (sinceD.getMonth()+1)*100 + sinceD.getDate();
+    db.run(`UPDATE employees SET dept_since=? WHERE id=?`,[sinceInt, editingEmpId]);
+    db.run(`DELETE FROM employee_attendance WHERE employee_id=? AND (year*10000+month*100+day) >= ?`,[editingEmpId, sinceInt]);
+  }
 
   // ئەگەر کارمەند گوازرایەوە بۆ بەشی "استیقالە"، ئەو ڕۆژە بە نەهاتوو هەژماردەکرێت
   if(newDeptId !== editingEmpDeptId){
@@ -3543,7 +3557,7 @@ function checkDailyReminder(){
   const res = db.exec(`
     SELECT COUNT(*) FROM employee_attendance ea
     JOIN employees e ON e.id=ea.employee_id
-    WHERE e.dept_id=${currentDeptId} AND ea.year=${y} AND ea.month=${m} AND ea.day=${d}
+    WHERE e.dept_id=${currentDeptId} AND ea.year=${y} AND ea.month=${m} AND ea.day=${d} AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
   `);
   const hasData = !!(res.length && res[0].values.length && res[0].values[0][0] > 0);
 
@@ -3635,7 +3649,10 @@ function openDayModal(day){
     c.parentElement.classList.toggle('disabled', !dayIsEditable);
   });
 
-  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours FROM employees WHERE dept_id=${currentDeptId} ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
+  const dayInt = selYear*10000 + (selMonth+1)*100 + day;
+  const delDayBtn = document.getElementById('dayModalDeleteBtn');
+  if(delDayBtn) delDayBtn.style.display = 'none';
+  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours,dept_since FROM employees WHERE dept_id=${currentDeptId} AND (dept_since IS NULL OR dept_since <= ${dayInt}) ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
   if(!empRes.length || !empRes[0].values.length){
     listWrap.innerHTML = '<div class="muted">پێشتر کارمەندێک بۆ ئەم بەشە زیاد بکە.</div>';
     document.getElementById('dayLiveSummary').innerHTML='';
@@ -3653,8 +3670,15 @@ function openDayModal(day){
     });
   }
 
-  empRes[0].values.forEach(([eid,name,code,shiftType,hours])=>{
-    dayAttendanceState[eid] = statusMap[eid] || 'present';
+  // دوگمەی سڕینەوەی ڕۆژ: تەنها ئەگەر تۆمار هەبێت و دەستکاریکردن ڕێگەپێدراو بێت
+  if(delDayBtn){
+    const hasRecords = empRes[0].values.some(r=>statusMap[r[0]]);
+    delDayBtn.style.display = (dayIsEditable && hasRecords && currentUser && currentUser.role==='admin') ? '' : 'none';
+  }
+
+  empRes[0].values.forEach(([eid,name,code,shiftType,hours,deptSince])=>{
+    // کارمەندی تازە گوازراوە: لە ڕۆژی گواستنەوەدا بە خۆکاری ئامادە نایژمێردرێت
+    dayAttendanceState[eid] = statusMap[eid] || ((deptSince===dayInt) ? null : 'present');
     if(!dayLateTimes[eid]) dayLateTimes[eid] = {start:'', end:''};
     if(dayNoteText[eid]===undefined) dayNoteText[eid] = '';
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
@@ -3954,6 +3978,26 @@ function updateDayLiveSummary(){
     `<span class="muted">کۆی کارمەندان: ${total}</span>
      <span><span class="p" style="font-weight:800;">✓ ${p}</span> &nbsp; <span style="font-weight:800;color:#a25f08;">🕒 ${l}</span> &nbsp; <span class="a" style="font-weight:800;">✗ ${a}</span></span>`;
   syncBulkChecks();
+}
+
+function deleteDayData(){
+  if(!(currentUser && currentUser.role==='admin')){
+    showToast('🔒 تەنها سوپەر ئەدمین دەتوانێت تۆماری ڕۆژ بسڕێتەوە');
+    return;
+  }
+  if(!dayIsEditable){
+    showToast('🔒 تەنها ئەدمین دەتوانێت ڕۆژانی تر دەستکاری بکات');
+    return;
+  }
+  if(!confirm('دڵنیایت لە سڕینەوەی هەموو تۆمارەکانی ئەم ڕۆژە؟\nڕۆژەکە دەگەڕێتەوە بۆ دۆخی پێشوو، وەک ئەوەی هیچ کاتێک تۆمار نەکرابێت.')) return;
+  db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id IN (SELECT id FROM employees WHERE dept_id=?)`,
+    [selYear, selMonth+1, selDay, currentDeptId]);
+  persistLocal();
+  bumpDeptChange(currentDeptId, 'Del', 'ئامادەبوونی ڕۆژانە', `ڕۆژی ${selDay}/${selMonth+1}/${selYear}`);
+  closeModal('dayModal');
+  renderCalendar();
+  showToast('تۆماری ئەم ڕۆژە سڕایەوە 🗑️');
+  debouncedSync();
 }
 
 function saveDayData(){
