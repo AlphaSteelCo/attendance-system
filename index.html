@@ -663,6 +663,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .settingsCardTitle{font-weight:800;font-size:13.5px;margin-bottom:2px;}
   .settingsCardDesc{font-size:11.5px;color:var(--muted);line-height:1.5;}
   .settingsHint{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  .dupGroup{border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:8px;background:#fff;}
+  .dupGroupHead{font-size:12.5px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .dupRow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;padding:4px 0;border-top:1px dashed var(--line);}
+  .dupRow:first-of-type{border-top:none;}
+  .dupBadge{font-size:10.5px;padding:2px 7px;border-radius:999px;background:#eef0ea;color:var(--muted);white-space:nowrap;}
+  .dupBadge.same{background:#fdecea;color:var(--bad);font-weight:700;}
+  .dupTitle{font-size:13px;font-weight:800;margin:10px 0 6px;}
   .passWrap{position:relative;margin-bottom:10px;}
   .passWrap .miniInput{margin-bottom:0;padding-inline-end:40px;}
   .eyeToggle{
@@ -1310,6 +1317,18 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
           </div>
         </div>
         <button class="btn btn-outline btn-sm" style="width:100%;" onclick="openAutoBackupsModal()">🕒 بینینی باکئەپە خۆکارەکان</button>
+      </div>
+
+      <div class="settingsCard" id="duplicateCheckCard">
+        <div class="settingsCardHead">
+          <span class="settingsIcon">👥</span>
+          <div>
+            <div class="settingsCardTitle">ناو یان کۆدی دووبارە</div>
+            <div class="settingsCardDesc">کارمەندانی ناو یان کۆدیان وەک یەک بێت (لە هەموو بەشەکان) پیشان دەدات.</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="width:100%;" onclick="scanDuplicateEmployees()">🔍 پشکنینی دووبارەبوونەوە</button>
+        <div id="duplicateResults" style="margin-top:10px;"></div>
       </div>
 
       <div class="settingsCard" id="oldDataCleanupCard">
@@ -4619,6 +4638,45 @@ function submitAdminUnlock(){
     refreshOldDataCleanupUI();
     openModal('settingsModal');
   });
+}
+function normalizeDupName(n){
+  return (n||'').toString()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g,'')   // نیشانەکان و کێشان
+    .replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/ہ|ه/g,'ە')
+    .replace(/\s+/g,' ').trim().toLowerCase();
+}
+function scanDuplicateEmployees(){
+  const out = document.getElementById('duplicateResults');
+  if(!out || !db) return;
+  const res = db.exec(`SELECT e.id,e.name,e.emp_code,e.dept_id,COALESCE(d.name,'-') FROM employees e LEFT JOIN departments d ON d.id=e.dept_id ORDER BY e.id`);
+  const rows = res.length ? res[0].values.map(([id,name,code,deptId,deptName])=>({id,name:name||'',code:(code==null?'':String(code)).trim(),deptId,deptName})) : [];
+
+  const group = (keyFn)=>{
+    const m = new Map();
+    rows.forEach(r=>{
+      const k = keyFn(r);
+      if(!k) return;
+      if(!m.has(k)) m.set(k, []);
+      m.get(k).push(r);
+    });
+    return [...m.values()].filter(g=>g.length>1);
+  };
+  const nameGroups = group(r=>normalizeDupName(r.name));
+  const codeGroups = group(r=>r.code);
+
+  const renderGroups = (groups, label, valueFn)=>{
+    if(!groups.length) return `<div class="muted" style="font-size:12px;">✅ هیچ ${label}ێکی دووبارە نییە.</div>`;
+    return groups.map(g=>{
+      const sameDept = new Set(g.map(r=>r.deptId)).size < g.length;
+      const head = `<div class="dupGroupHead">${escapeHtml(valueFn(g[0]))} <span class="dupBadge ${sameDept?'same':''}">${g.length} جار${sameDept?' • لە هەمان بەش':' • بەشی جیاواز'}</span></div>`;
+      const body = g.map(r=>`<div class="dupRow"><span>${escapeHtml(r.name)}${r.code?` <span class="muted">(${escapeHtml(r.code)})</span>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`).join('');
+      return `<div class="dupGroup">${head}${body}</div>`;
+    }).join('');
+  };
+
+  out.innerHTML =
+    `<div class="dupTitle">📛 ناوی دووبارە (${nameGroups.length})</div>` + renderGroups(nameGroups,'ناو',g=>g.name) +
+    `<div class="dupTitle">🔢 کۆدی دووبارە (${codeGroups.length})</div>` + renderGroups(codeGroups,'کۆد',g=>g.code);
 }
 function setSettingsTab(tab){
   document.getElementById('settingsTab_cloud').style.display = tab==='cloud'?'block':'none';
