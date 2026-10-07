@@ -1176,6 +1176,10 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('editEmpHours','19:00-07:00 N')">19:00 - 07:00 N</button>
     </div>
     <input class="miniInput" id="editEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17، یان خۆت بینووسە" style="margin-top:2px;">
+    <div id="employeeSinceWrap" style="display:none;">
+      <label class="muted" style="font-size:12px;">بەرواری دەستپێکی کارمەند (پێش ئەم بەروارە ناژمێردرێت، بەتاڵ = لە سەرەتاوە)</label>
+      <input type="date" class="miniInput" id="editEmpSince" style="margin:6px 0 10px;">
+    </div>
     <div id="employeeTransferWrap" style="display:none;">
       <label class="muted" style="font-size:12px;">گواستنەوە بۆ بەشێکی تر</label>
       <select id="editEmpDept" class="selectBox" style="width:100%;margin:6px 0 10px;"></select>
@@ -1519,6 +1523,10 @@ function ensureSchema(){
   // بەرواری گواستنەوەی کارمەند بۆ بەشی ئێستای (YYYYMMDD). پێش ئەو بەروارە لەم بەشەدا ناژمێردرێت
   if(!empColNames.includes('dept_since')){
     db.run(`ALTER TABLE employees ADD COLUMN dept_since INTEGER`);
+  }
+  // 1 = کارمەندی گوازراوە: لە ڕۆژی گواستنەوەدا دیارینەکراوە (نە ئامادە نە نەهاتوو)
+  if(!empColNames.includes('since_blank')){
+    db.run(`ALTER TABLE employees ADD COLUMN since_blank INTEGER DEFAULT 0`);
   }
   const eaCols = db.exec(`PRAGMA table_info(employee_attendance)`);
   const eaColNames = eaCols.length ? eaCols[0].values.map(row => row[1]) : [];
@@ -3084,7 +3092,7 @@ function addEmployeeConfirm(){
   const shiftType = document.getElementById('newEmpShiftType').value;
   const hours = document.getElementById('newEmpHours').value.trim();
   if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
-  db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours) VALUES (?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours]);
+  db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours,deptTodayInt(targetDeptId)]);
   persistLocal();
   bumpDeptChange(targetDeptId, 'New', 'کارمەند', name);
   closeModal('addEmployeeModal');
@@ -3097,14 +3105,26 @@ let editingEmpId=null;
 let editingEmpDeptId = null;
 function openEditEmployee(id){
   editingEmpId = id;
-  const res = db.exec(`SELECT name,emp_code,dept_id,shift_type,hours FROM employees WHERE id=${id}`);
-  const [name,code,deptId,shiftType,hours] = res[0].values[0];
+  const res = db.exec(`SELECT name,emp_code,dept_id,shift_type,hours,dept_since FROM employees WHERE id=${id}`);
+  const [name,code,deptId,shiftType,hours,deptSince] = res[0].values[0];
   editingEmpDeptId = deptId;
   document.getElementById('editEmpName').value = name;
   document.getElementById('editEmpCode').value = code||'';
   document.getElementById('editEmpShiftType').value = shiftType||'ڕۆژ';
   document.getElementById('editEmpHours').value = hours||'';
 
+  // بەرواری دەستپێک: تەنها سوپەر ئەدمین
+  const sinceWrap = document.getElementById('employeeSinceWrap');
+  const sinceInp = document.getElementById('editEmpSince');
+  if(sinceWrap && sinceInp){
+    sinceWrap.style.display = (currentUser.role==='admin') ? 'block' : 'none';
+    if(deptSince){
+      const ds = String(deptSince);
+      sinceInp.value = `${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}`;
+    }else{
+      sinceInp.value = '';
+    }
+  }
   const canTransfer = currentUser.role==='admin' || (currentUser.role==='limited_admin' && currentUser.deptIds && currentUser.deptIds.length>1);
   const transferWrap = document.getElementById('employeeTransferWrap');
   if(canTransfer){
@@ -3127,7 +3147,7 @@ function openEditEmployee(id){
   }
 
   const editable = hasPerm('edit', deptId);
-  ['editEmpName','editEmpCode','editEmpShiftType','editEmpHours','editEmpDept'].forEach(fid=>{
+  ['editEmpName','editEmpCode','editEmpShiftType','editEmpHours','editEmpDept','editEmpSince'].forEach(fid=>{
     const el = document.getElementById(fid);
     if(el) el.disabled = !editable;
   });
@@ -3161,8 +3181,21 @@ function saveEmployeeEdit(){
     let sinceD;
     try{ sinceD = getEffectiveEditDate(newDeptId); }catch(e){ sinceD = new Date(); }
     const sinceInt = sinceD.getFullYear()*10000 + (sinceD.getMonth()+1)*100 + sinceD.getDate();
-    db.run(`UPDATE employees SET dept_since=? WHERE id=?`,[sinceInt, editingEmpId]);
+    db.run(`UPDATE employees SET dept_since=?, since_blank=1 WHERE id=?`,[sinceInt, editingEmpId]);
     db.run(`DELETE FROM employee_attendance WHERE employee_id=? AND (year*10000+month*100+day) >= ?`,[editingEmpId, sinceInt]);
+  }
+  // گۆڕینی دەستی بەرواری دەستپێک (تەنها سوپەر ئەدمین، و ئەگەر بەش نەگۆڕدرابێت)
+  else if(currentUser.role==='admin'){
+    const sinceInp = document.getElementById('editEmpSince');
+    if(sinceInp){
+      const v = sinceInp.value; // YYYY-MM-DD یان بەتاڵ
+      if(v){
+        const sInt = parseInt(v.replace(/-/g,''),10);
+        db.run(`UPDATE employees SET dept_since=?, since_blank=0 WHERE id=?`,[sInt, editingEmpId]);
+      }else{
+        db.run(`UPDATE employees SET dept_since=NULL, since_blank=0 WHERE id=?`,[editingEmpId]);
+      }
+    }
   }
 
   // ئەگەر کارمەند گوازرایەوە بۆ بەشی "استیقالە"، ئەو ڕۆژە بە نەهاتوو هەژماردەکرێت
@@ -3427,7 +3460,7 @@ function processBulkAddEmployees(){
     let shiftType = (item.shift || item.shift_type || item['شەفت'] || 'ڕۆژ').toString().trim();
     if(shiftType!=='ڕۆژ' && shiftType!=='شەو') shiftType='ڕۆژ';
     const hours = (item.hours || item['کات'] || '').toString().trim();
-    db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours) VALUES (?,?,?,?,?)`,[deptDetailId,name,code,shiftType,hours]);
+    db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[deptDetailId,name,code,shiftType,hours,deptTodayInt(deptDetailId)]);
     added++;
   });
   persistLocal();
@@ -3477,6 +3510,12 @@ function computeDeptWindow(deptId){
 // ئەگەر کاتی بەش بەسەر نیوەشەودا بڕوات (بۆ نموونە 19:00 + 12 کاژمێر = تا 07:00)، ئەوا لە کاتژمێرەکانی
 // بەرەبەیان (0:00 تا کاتی کۆتایی) ڕۆژی "ئێستا"ی دەستکاریکردن هێشتا ڕۆژی پێشووە، چونکە ئەو شەفتە شەوە
 // لە ئێوارەی ڕۆژی پێشوو دەستی پێکردووە و تۆمارەکەی هێشتا هی ئەو ڕۆژەیە.
+// بەرواری ئەمڕۆی کارکردنی بەش بە شێوەی YYYYMMDD (بۆ دیاریکردنی ڕۆژی دەستپێکی کارمەند)
+function deptTodayInt(deptId){
+  let d;
+  try{ d = getEffectiveEditDate(deptId); }catch(e){ d = new Date(); }
+  return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+}
 function getEffectiveEditDate(deptId){
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -3671,7 +3710,7 @@ function openDayModal(day){
   const dayInt = selYear*10000 + (selMonth+1)*100 + day;
   const delDayBtn = document.getElementById('dayModalDeleteBtn');
   if(delDayBtn) delDayBtn.style.display = 'none';
-  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours,dept_since FROM employees WHERE dept_id=${currentDeptId} AND (dept_since IS NULL OR dept_since <= ${dayInt}) ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
+  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours,dept_since,since_blank FROM employees WHERE dept_id=${currentDeptId} AND (dept_since IS NULL OR dept_since <= ${dayInt}) ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
   if(!empRes.length || !empRes[0].values.length){
     listWrap.innerHTML = '<div class="muted">پێشتر کارمەندێک بۆ ئەم بەشە زیاد بکە.</div>';
     document.getElementById('dayLiveSummary').innerHTML='';
@@ -3695,9 +3734,9 @@ function openDayModal(day){
     delDayBtn.style.display = (dayIsEditable && hasRecords && currentUser && currentUser.role==='admin') ? '' : 'none';
   }
 
-  empRes[0].values.forEach(([eid,name,code,shiftType,hours,deptSince])=>{
-    // کارمەندی تازە گوازراوە: لە ڕۆژی گواستنەوەدا بە خۆکاری ئامادە نایژمێردرێت
-    dayAttendanceState[eid] = statusMap[eid] || ((deptSince===dayInt) ? null : 'present');
+  empRes[0].values.forEach(([eid,name,code,shiftType,hours,deptSince,sinceBlank])=>{
+    // کارمەندی گوازراوە: لە ڕۆژی گواستنەوەدا بە خۆکاری ئامادە نایژمێردرێت (کارمەندی تازە ئامادەیە)
+    dayAttendanceState[eid] = statusMap[eid] || ((deptSince===dayInt && sinceBlank===1) ? null : 'present');
     if(!dayLateTimes[eid]) dayLateTimes[eid] = {start:'', end:''};
     if(dayNoteText[eid]===undefined) dayNoteText[eid] = '';
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
