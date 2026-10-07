@@ -1539,6 +1539,12 @@ function ensureSchema(){
   if(!eaColNames.includes('note')){
     db.run(`ALTER TABLE employee_attendance ADD COLUMN note TEXT`);
   }
+  // بەشی تۆمارکردن: هەر تۆمارێک لەو بەشەدا دەمێنێتەوە کە تێیدا تۆمار کراوە (ئەگەر کارمەند بگوازرێتەوە)
+  if(!eaColNames.includes('dept_id')){
+    db.run(`ALTER TABLE employee_attendance ADD COLUMN dept_id INTEGER`);
+    // تۆماری کۆن: بۆ بەشی ئێستای کارمەند. ئەوانەی پێش بەرواری دەستپێک بوون (گوازراوە) = 0 تا نەژمێردرێن
+    db.run(`UPDATE employee_attendance SET dept_id = COALESCE((SELECT CASE WHEN e.dept_since IS NULL OR (employee_attendance.year*10000+employee_attendance.month*100+employee_attendance.day) >= e.dept_since THEN e.dept_id ELSE 0 END FROM employees e WHERE e.id = employee_attendance.employee_id),0) WHERE dept_id IS NULL`);
+  }
   // بۆ داتابەیسی کۆن: خشتەکانی ئەدمینی سنووردار
   db.run(`CREATE TABLE IF NOT EXISTS limited_admins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2181,7 +2187,7 @@ function getDeptLastAttendanceDate(deptId){
   const res = db.exec(`
     SELECT MAX(year*10000+month*100+day) FROM employee_attendance ea
     JOIN employees e ON e.id = ea.employee_id
-    WHERE e.dept_id = ${deptId} AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
+    WHERE COALESCE(ea.dept_id, e.dept_id) = ${deptId}
   `);
   const v = res.length ? res[0].values[0][0] : null;
   if(v==null) return null;
@@ -2830,10 +2836,9 @@ function renderMonthlyReport(){
   const stmt = db.prepare(`
     SELECT e.id, e.name, e.emp_code, e.shift_type,
       SUM(CASE WHEN ea.status IN ('absent','late') THEN 1 ELSE 0 END) as a
-    FROM employees e
-    LEFT JOIN employee_attendance ea
-      ON ea.employee_id = e.id AND ea.year=? AND ea.month=? AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
-    WHERE e.dept_id=? AND (e.name LIKE ? OR e.emp_code LIKE ?)
+    FROM employee_attendance ea
+    JOIN employees e ON e.id = ea.employee_id
+    WHERE ea.year=? AND ea.month=? AND COALESCE(ea.dept_id, e.dept_id)=? AND (e.name LIKE ? OR e.emp_code LIKE ?)
     GROUP BY e.id
     HAVING a > 0
     ORDER BY CAST(e.emp_code AS INTEGER) ASC, e.emp_code ASC
@@ -2853,7 +2858,7 @@ function renderMonthlyReport(){
     SELECT ea.employee_id, ea.day, ea.status
     FROM employee_attendance ea
     JOIN employees e ON e.id = ea.employee_id
-    WHERE e.dept_id=? AND ea.year=? AND ea.month=? AND ea.status IN ('absent','late') AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
+    WHERE COALESCE(ea.dept_id, e.dept_id)=? AND ea.year=? AND ea.month=? AND ea.status IN ('absent','late')
     ORDER BY ea.day ASC
   `);
   daysStmt.bind([currentDeptId, selYear, selMonth+1]);
@@ -2905,7 +2910,7 @@ function openAbsenceDetail(employeeId){
     [codeLabel,shiftLabel, `مانگی ${KURDISH_MONTHS[selMonth]} ${selYear}`].filter(Boolean).join(' • ');
 
   const res = db.exec(
-    `SELECT day FROM employee_attendance WHERE employee_id=${employeeId} AND year=${selYear} AND month=${selMonth+1} AND status='absent' AND (year*10000+month*100+day) >= COALESCE((SELECT dept_since FROM employees WHERE id=${employeeId}),0) ORDER BY day ASC`
+    `SELECT day FROM employee_attendance WHERE employee_id=${employeeId} AND year=${selYear} AND month=${selMonth+1} AND status='absent' AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=${employeeId}))=${currentDeptId} ORDER BY day ASC`
   );
   const listWrap = document.getElementById('absenceDetailList');
   listWrap.innerHTML='';
@@ -2982,10 +2987,9 @@ function renderCalendar(){
     SELECT
       SUM(CASE WHEN ea.status='present' THEN 1 ELSE 0 END) as p,
       SUM(CASE WHEN ea.status IN ('absent','late') THEN 1 ELSE 0 END) as a
-    FROM employees e
-    LEFT JOIN employee_attendance ea
-      ON ea.employee_id = e.id AND ea.year=? AND ea.month=? AND ea.day=? AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
-    WHERE e.dept_id=?
+    FROM employee_attendance ea
+    JOIN employees e ON e.id = ea.employee_id
+    WHERE ea.year=? AND ea.month=? AND ea.day=? AND COALESCE(ea.dept_id, e.dept_id)=?
   `);
 
   const now = new Date();
@@ -3174,6 +3178,17 @@ function saveEmployeeEdit(){
     showToast('🔒 دەسەڵاتی زیادکردنت لەو بەشەدا نییە کە دەتەوێت کارمەندەکەی بۆ بگوازیتەوە');
     return;
   }
+  // بەرواری دەستپێکی دەستی: تۆمارەکانی پێش ئەو بەروارە لەم بەشەدا دەسڕدرێنەوە
+  let sinceNewInt = null;
+  if(currentUser.role==='admin' && newDeptId===editingEmpDeptId){
+    const sv = document.getElementById('editEmpSince')?.value;
+    if(sv){
+      sinceNewInt = parseInt(sv.replace(/-/g,''),10);
+      const cr = db.exec(`SELECT COUNT(*) FROM employee_attendance WHERE employee_id=${editingEmpId} AND COALESCE(dept_id,${editingEmpDeptId})=${editingEmpDeptId} AND (year*10000+month*100+day) < ${sinceNewInt}`);
+      const cnt = (cr.length && cr[0].values.length) ? cr[0].values[0][0] : 0;
+      if(cnt>0 && !confirm(`${cnt} تۆماری ئامادەبوونی پێش ئەو بەروارە لەم بەشەدا دەسڕدرێنەوە. بەردەوام بیت؟`)) return;
+    }
+  }
   db.run(`UPDATE employees SET name=?, emp_code=?, dept_id=?, shift_type=?, hours=? WHERE id=?`,[name,code,newDeptId,shiftType,hours,editingEmpId]);
 
   // گواستنەوە بۆ بەشێکی تر: هیچ تۆمارێکی پێشوو ناگوازرێتەوە و بە ئامادە نایژمێرێت
@@ -3182,7 +3197,7 @@ function saveEmployeeEdit(){
     try{ sinceD = getEffectiveEditDate(newDeptId); }catch(e){ sinceD = new Date(); }
     const sinceInt = sinceD.getFullYear()*10000 + (sinceD.getMonth()+1)*100 + sinceD.getDate();
     db.run(`UPDATE employees SET dept_since=?, since_blank=1 WHERE id=?`,[sinceInt, editingEmpId]);
-    db.run(`DELETE FROM employee_attendance WHERE employee_id=? AND (year*10000+month*100+day) >= ?`,[editingEmpId, sinceInt]);
+    // تۆمارە کۆنەکان لە بەشی پێشووتر دەمێننەوە (تۆمارەکان بە بەشی تۆمارکردنەوە بەستراون)
   }
   // گۆڕینی دەستی بەرواری دەستپێک (تەنها سوپەر ئەدمین، و ئەگەر بەش نەگۆڕدرابێت)
   else if(currentUser.role==='admin'){
@@ -3192,6 +3207,7 @@ function saveEmployeeEdit(){
       if(v){
         const sInt = parseInt(v.replace(/-/g,''),10);
         db.run(`UPDATE employees SET dept_since=?, since_blank=0 WHERE id=?`,[sInt, editingEmpId]);
+        db.run(`DELETE FROM employee_attendance WHERE employee_id=? AND COALESCE(dept_id,?)=? AND (year*10000+month*100+day) < ?`,[editingEmpId, editingEmpDeptId, editingEmpDeptId, sInt]);
       }else{
         db.run(`UPDATE employees SET dept_since=NULL, since_blank=0 WHERE id=?`,[editingEmpId]);
       }
@@ -3208,10 +3224,10 @@ function saveEmployeeEdit(){
       const now = new Date();
       const y = now.getFullYear(), m = now.getMonth()+1, d = now.getDate();
       db.run(`
-        INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time)
-        VALUES (?,?,?,?,?,NULL,NULL)
-        ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=NULL, end_time=NULL
-      `,[y,m,d,editingEmpId,'absent']);
+        INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time,dept_id)
+        VALUES (?,?,?,?,?,NULL,NULL,?)
+        ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=NULL, end_time=NULL, dept_id=excluded.dept_id
+      `,[y,m,d,editingEmpId,'absent',newDeptId]);
     }
   }
 
@@ -3615,7 +3631,7 @@ function checkDailyReminder(){
   const res = db.exec(`
     SELECT COUNT(*) FROM employee_attendance ea
     JOIN employees e ON e.id=ea.employee_id
-    WHERE e.dept_id=${currentDeptId} AND ea.year=${y} AND ea.month=${m} AND ea.day=${d} AND (e.dept_since IS NULL OR (ea.year*10000+ea.month*100+ea.day) >= e.dept_since)
+    WHERE COALESCE(ea.dept_id, e.dept_id)=${currentDeptId} AND ea.year=${y} AND ea.month=${m} AND ea.day=${d}
   `);
   const hasData = !!(res.length && res[0].values.length && res[0].values[0][0] > 0);
 
@@ -3710,7 +3726,7 @@ function openDayModal(day){
   const dayInt = selYear*10000 + (selMonth+1)*100 + day;
   const delDayBtn = document.getElementById('dayModalDeleteBtn');
   if(delDayBtn) delDayBtn.style.display = 'none';
-  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours,dept_since,since_blank FROM employees WHERE dept_id=${currentDeptId} AND (dept_since IS NULL OR dept_since <= ${dayInt}) ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
+  const empRes = db.exec(`SELECT id,name,emp_code,shift_type,hours,dept_since,since_blank FROM employees WHERE (dept_id=${currentDeptId} AND (dept_since IS NULL OR dept_since <= ${dayInt})) OR id IN (SELECT ea2.employee_id FROM employee_attendance ea2 WHERE ea2.year=${selYear} AND ea2.month=${selMonth+1} AND ea2.day=${day} AND COALESCE(ea2.dept_id,(SELECT dept_id FROM employees WHERE id=ea2.employee_id))=${currentDeptId}) ORDER BY CAST(emp_code AS INTEGER) ASC, emp_code ASC`);
   if(!empRes.length || !empRes[0].values.length){
     listWrap.innerHTML = '<div class="muted">پێشتر کارمەندێک بۆ ئەم بەشە زیاد بکە.</div>';
     document.getElementById('dayLiveSummary').innerHTML='';
@@ -3718,7 +3734,7 @@ function openDayModal(day){
     return;
   }
 
-  const statusRes = db.exec(`SELECT employee_id,status,start_time,end_time,note FROM employee_attendance WHERE year=${selYear} AND month=${selMonth+1} AND day=${day}`);
+  const statusRes = db.exec(`SELECT ea.employee_id,ea.status,ea.start_time,ea.end_time,ea.note FROM employee_attendance ea JOIN employees e ON e.id=ea.employee_id WHERE ea.year=${selYear} AND ea.month=${selMonth+1} AND ea.day=${day} AND COALESCE(ea.dept_id,e.dept_id)=${currentDeptId}`);
   const statusMap = {};
   if(statusRes.length){
     statusRes[0].values.forEach(([eid,status,startTime,endTime,note])=>{
@@ -4068,7 +4084,7 @@ function confirmDeleteDay(){
   }
   errEl.textContent = '';
   pinSuccess('deleteDayPassBoxes', ()=>{
-    db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id IN (SELECT id FROM employees WHERE dept_id=?)`,
+    db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=?`,
       [selYear, selMonth+1, selDay, currentDeptId]);
     persistLocal();
     bumpDeptChange(currentDeptId, 'Del', 'ئامادەبوونی ڕۆژانە', `ڕۆژی ${selDay}/${selMonth+1}/${selYear}`);
@@ -4090,18 +4106,18 @@ function saveDayData(){
     const status = dayAttendanceState[eid];
     if(status===null){
       // هیچ دیاری نەکراوە، ئەگەر پێشتر تۆمارێک هەبوو بیسڕەوە
-      db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id=?`,
-        [selYear, selMonth+1, selDay, eid]);
+      db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND employee_id=? AND COALESCE(dept_id,?)=?`,
+        [selYear, selMonth+1, selDay, eid, currentDeptId, currentDeptId]);
       return;
     }
     const startTime = status==='late' ? (dayLateTimes[eid]?.start || null) : null;
     const endTime = status==='late' ? (dayLateTimes[eid]?.end || null) : null;
     const noteVal = (dayNoteText[eid] && dayNoteText[eid].trim()) ? dayNoteText[eid].trim() : null;
     db.run(`
-      INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time,note)
-      VALUES (?,?,?,?,?,?,?,?)
-      ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=excluded.start_time, end_time=excluded.end_time, note=excluded.note
-    `,[selYear, selMonth+1, selDay, eid, status, startTime, endTime, noteVal]);
+      INSERT INTO employee_attendance (year,month,day,employee_id,status,start_time,end_time,note,dept_id)
+      VALUES (?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(year,month,day,employee_id) DO UPDATE SET status=excluded.status, start_time=excluded.start_time, end_time=excluded.end_time, note=excluded.note, dept_id=excluded.dept_id
+    `,[selYear, selMonth+1, selDay, eid, status, startTime, endTime, noteVal, currentDeptId]);
   });
   persistLocal();
   bumpDeptChange(currentDeptId, 'Upd', 'ئامادەبوونی ڕۆژانە', `ڕۆژی ${selDay}/${selMonth+1}/${selYear}`);
@@ -4362,6 +4378,7 @@ function saveDeptEdit(){
 function deleteDept(){
   if(!confirm('دڵنیایت لە سڕینەوەی ئەم بەشە و هەموو داتاکانی؟')) return;
   db.run(`DELETE FROM employee_attendance WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
+  db.run(`DELETE FROM employee_attendance WHERE dept_id=${editingDeptId}`);
   db.run(`DELETE FROM attendance WHERE dept_id=${editingDeptId}`);
   db.run(`DELETE FROM shifts WHERE dept_id=${editingDeptId}`);
   db.run(`DELETE FROM employees WHERE dept_id=${editingDeptId}`);
