@@ -1204,6 +1204,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal('empAbsencesModal')">✕</button>
     </div>
     <div id="empAbsHeader" style="font-size:13.5px;font-weight:800;margin-bottom:4px;"></div>
+    <select id="empAbsMonthSel" class="selectBox" style="width:100%;margin:6px 0 8px;" onchange="renderEmpAbsences()"></select>
     <div id="empAbsSummary" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
     <div id="empAbsList" style="max-height:52vh;overflow-y:auto;margin-bottom:12px;"></div>
     <button class="btn btn-outline" style="width:100%;" id="empAbsPrintBtn" onclick="printEmpAbsences()">🖨️ پرێنت</button>
@@ -4251,36 +4252,72 @@ function getEmpAbsenceData(eid){
   }) : [];
   return {name,code,rows};
 }
+let empAbsData = {name:'',code:'',rows:[]};
 function openEmpAbsences(){
   if(!editingEmpId) return;
-  const {name,code,rows} = getEmpAbsenceData(editingEmpId);
-  document.getElementById('empAbsHeader').textContent = name + (code ? ` (${String(code).toUpperCase()})` : '');
-  document.getElementById('empAbsSummary').textContent = rows.length ? `کۆی ڕۆژانی ئامادەنەبوون: ${rows.length}` : '';
+  empAbsData = getEmpAbsenceData(editingEmpId);
+  document.getElementById('empAbsHeader').textContent = empAbsData.name + (empAbsData.code ? ` (${String(empAbsData.code).toUpperCase()})` : '');
+  // هەڵبژاردنی مانگ: هەموو مانگەکان + ئەو مانگانەی ڕۆژی ئامادەنەبوونیان تێدایە (نوێترین سەرەتا)
+  const sel = document.getElementById('empAbsMonthSel');
+  const counts = new Map();
+  empAbsData.rows.forEach(r=>{
+    const k = r.y+'-'+r.m;
+    counts.set(k, (counts.get(k)||0)+1);
+  });
+  let opts = `<option value="all">هەموو مانگەکان (${empAbsData.rows.length})</option>`;
+  [...counts.keys()].reverse().forEach(k=>{
+    const [y,m] = k.split('-').map(Number);
+    opts += `<option value="${k}">${KURDISH_MONTHS[m-1]} ${y} (${counts.get(k)})</option>`;
+  });
+  sel.innerHTML = opts;
+  sel.value = 'all';
+  sel.style.display = empAbsData.rows.length ? '' : 'none';
+  renderEmpAbsences();
+  openModal('empAbsencesModal');
+}
+function getFilteredEmpAbs(){
+  const sel = document.getElementById('empAbsMonthSel');
+  const v = sel ? sel.value : 'all';
+  if(!v || v==='all') return empAbsData.rows;
+  const [y,m] = v.split('-').map(Number);
+  return empAbsData.rows.filter(r=>r.y===y && r.m===m);
+}
+function renderEmpAbsences(){
+  const rows = getFilteredEmpAbs();
+  const sel = document.getElementById('empAbsMonthSel');
+  const filtered = sel && sel.value && sel.value!=='all';
+  document.getElementById('empAbsSummary').textContent = rows.length ? `کۆی ڕۆژانی ئامادەنەبوون${filtered?' لەم مانگەدا':''}: ${rows.length}` : '';
   const list = document.getElementById('empAbsList');
   const pb = document.getElementById('empAbsPrintBtn');
   if(!rows.length){
     list.innerHTML = '<div class="muted" style="text-align:center;padding:18px 0;">✅ ئەم کارمەندە هیچ ڕۆژێکی ئامادەنەبوونی نییە</div>';
     if(pb) pb.style.display = 'none';
-  }else{
-    if(pb) pb.style.display = '';
-    let html = '', lastKey = '';
-    rows.forEach(r=>{
-      const key = r.y+'-'+r.m;
-      if(key!==lastKey){
-        const cnt = rows.filter(x=>x.y===r.y && x.m===r.m).length;
-        html += `<div class="dupTitle" style="margin-top:${lastKey?'12px':'0'};">${KURDISH_MONTHS[r.m-1]} ${r.y} <span class="dupBadge">${cnt}</span></div>`;
-        lastKey = key;
-      }
-      html += `<div class="dupRow"><span>${r.d} ${KURDISH_MONTHS[r.m-1]} • ${r.wd}${r.note?`<div class="muted" style="font-size:11px;">📝 ${escapeHtml(r.note)}</div>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`;
-    });
-    list.innerHTML = html;
+    return;
   }
-  openModal('empAbsencesModal');
+  if(pb) pb.style.display = '';
+  let html = '', lastKey = '';
+  rows.forEach(r=>{
+    const key = r.y+'-'+r.m;
+    if(key!==lastKey){
+      const cnt = rows.filter(x=>x.y===r.y && x.m===r.m).length;
+      html += `<div class="dupTitle" style="margin-top:${lastKey?'12px':'0'};">${KURDISH_MONTHS[r.m-1]} ${r.y} <span class="dupBadge">${cnt}</span></div>`;
+      lastKey = key;
+    }
+    html += `<div class="dupRow"><span>${r.d} ${KURDISH_MONTHS[r.m-1]} • ${r.wd}${r.note?`<div class="muted" style="font-size:11px;">📝 ${escapeHtml(r.note)}</div>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`;
+  });
+  list.innerHTML = html;
 }
 function printEmpAbsences(){
   if(!editingEmpId) return;
-  const {name,code,rows} = getEmpAbsenceData(editingEmpId);
+  const name = empAbsData.name, code = empAbsData.code;
+  const rows = getFilteredEmpAbs();
   if(!rows.length) return;
+  const selP = document.getElementById('empAbsMonthSel');
+  let monthLabel = '';
+  if(selP && selP.value && selP.value!=='all'){
+    const [py,pm] = selP.value.split('-').map(Number);
+    monthLabel = `${KURDISH_MONTHS[pm-1]} ${py}`;
+  }
   const printedAt = new Date().toLocaleString('en-GB');
   const trs = rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d} ${KURDISH_MONTHS[r.m-1]} ${r.y}</td><td>${r.wd}</td><td>${escapeHtml(r.deptName)}</td><td class="prNote">${escapeHtml(r.note)}</td></tr>`).join('');
   const html = `<!DOCTYPE html>
@@ -4307,7 +4344,7 @@ function printEmpAbsences(){
 <body>
   <div class="prHead">
     <h1>ڕۆژانی ئامادەنەبوونی کارمەند</h1>
-    <div class="sub">کارمەند: ${escapeHtml(name)}${code ? ' &nbsp;|&nbsp; ئایدی: '+escapeHtml(String(code).toUpperCase()) : ''}</div>
+    <div class="sub">کارمەند: ${escapeHtml(name)}${code ? ' &nbsp;|&nbsp; ئایدی: '+escapeHtml(String(code).toUpperCase()) : ''}${monthLabel ? ' &nbsp;|&nbsp; مانگ: '+escapeHtml(monthLabel) : ' &nbsp;|&nbsp; هەموو مانگەکان'}</div>
   </div>
   <table>
     <thead><tr><th>#</th><th>بەروار</th><th>ڕۆژ</th><th>بەش</th><th>تێبینی</th></tr></thead>
