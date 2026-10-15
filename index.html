@@ -479,6 +479,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   @keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
   .modalHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .modalHead h3{margin:0;font-size:16px;}
+  /* دوگمەی داخستن (✕) هەمیشە لە سەرەوەی پەنجەرەکە دیار بێت، با سکرۆڵ بکرێت */
+  .modal > .modalHead{position:sticky;top:0;z-index:20;background:#fff;margin:-18px -16px 14px;padding:18px 16px 10px;box-shadow:0 1px 0 var(--line);}
+  .modal > .modalHead .closeX{font-size:22px;line-height:1;padding:4px 8px;}
   .closeX{background:none;border:none;font-size:20px;color:var(--muted);}
 
   .shiftRow{
@@ -1080,7 +1083,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       </div>
       <div style="flex:1;">
         <label class="muted" style="font-size:11px;display:block;margin-bottom:3px;">چەند کاژمێر دوای دەستپێک؟</label>
-        <input class="miniInput" type="number" id="editDeptEditDuration" min="0.5" max="24" step="0.5" style="margin-bottom:0;" oninput="updateDeptWindowPreview()">
+        <input class="miniInput" type="number" id="editDeptEditDuration" min="0.5" max="48" step="0.5" style="margin-bottom:0;" oninput="updateDeptWindowPreview()">
       </div>
     </div>
     <div class="muted" style="font-size:11px;margin-bottom:10px;" id="editDeptWindowPreview"></div>
@@ -3558,7 +3561,7 @@ function minutesToTime(min){
 function computeDeptWindow(deptId){
   const {start,durationMin} = getDeptEditWindow(deptId);
   const startMin = timeToMinutes(start);
-  if(startMin===null || durationMin>=1440) return {startMin: startMin||0, endMin: startMin||0, wraps:false, alwaysOpen:true};
+  if(startMin===null || durationMin>=1440) return {startMin: startMin||0, endMin: startMin||0, wraps:false, alwaysOpen:true, durationMin};
   const endMin = (startMin + durationMin) % 1440;
   const wraps = endMin < startMin;
   return {startMin, endMin, wraps, alwaysOpen:false};
@@ -3595,6 +3598,19 @@ function getEffectiveEditDate(deptId){
   }
   return today;
 }
+// ئایا ئەم ڕۆژە ئێستا دەستکاریکردنی کراوەیە؟ (پشتگیری یەکتر گرتنی ڕۆژان کاتێک ماوەکە زیاترە لە 24 کاتژمێر)
+function isDayInDeptWindow(deptId, dateObj){
+  const {start,durationMin} = getDeptEditWindow(deptId);
+  if(durationMin > 1440){
+    const sm = timeToMinutes(start) || 0;
+    const begin = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 0, sm);
+    const end = new Date(begin.getTime() + durationMin*60000);
+    const now = new Date();
+    return now >= begin && now < end;
+  }
+  const eff = getEffectiveEditDate(deptId);
+  return Math.round((dateObj - eff)/86400000) === 0 && isWithinDeptEditWindow(deptId);
+}
 function isWithinDeptEditWindow(deptId){
   const {startMin, endMin, wraps, alwaysOpen} = computeDeptWindow(deptId);
   if(alwaysOpen) return true;
@@ -3612,6 +3628,11 @@ function updateDeptWindowPreview(){
   const startMin = timeToMinutes(start);
   if(startMin===null){ prev.textContent=''; return; }
   const durationMin = Math.round(hours*60);
+  if(durationMin>1440){
+    const extraDays = Math.floor((startMin+durationMin)/1440);
+    prev.textContent = `ℹ️ هەر ڕۆژێک لە ${start} دەست پێدەکات و تا ${minutesToTime((startMin+durationMin)%1440)}ی ${extraDays} ڕۆژ دواتر کراوەیە. لە نێوان ${start} و ${minutesToTime((startMin+durationMin)%1440)} ڕۆژی نوێ و ڕۆژی پێشوو پێکەوە کراوەن.`;
+    return;
+  }
   if(durationMin>=1440){
     prev.textContent = (start==='00:00')
       ? 'ℹ️ هەموو ڕۆژ کراوە دەبێت (بێ سنووری کات).'
@@ -3744,12 +3765,22 @@ function openDayModal(day){
   const isEffectiveToday = Math.round((selDateObj - effectiveEditDate) / 86400000) === 0;
   const withinWindow = isSuperAdmin || isWithinDeptEditWindow(currentDeptId);
   // تەنها سوپەر ئەدمین دەتوانێت هەموو ڕۆژەکان دەستکاری بکات، ئەدمینەکانی تر تەنها ڕۆژی چالاکی ئێستا و لەناو کاتی دیاریکراودا
-  dayIsEditable = canDaily && (isSuperAdmin || (isEffectiveToday && withinWindow));
+  const overlapMode = getDeptEditWindow(currentDeptId).durationMin > 1440;
+  dayIsEditable = canDaily && (isSuperAdmin || isDayInDeptWindow(currentDeptId, selDateObj));
   const lockNote = document.getElementById('dayLockNote');
   const saveBtn = document.getElementById('dayModalSaveBtn');
   if(lockNote){
     if(!canDaily){
       lockNote.textContent = '🔒 دەسەڵاتی دەستکاریکردنی ڕۆژانەت لەم بەشەدا نییە.';
+    } else if(overlapMode){
+      if(dayIsEditable){
+        lockNote.textContent = '';
+      }else{
+        const w = getDeptEditWindow(currentDeptId);
+        const sm = timeToMinutes(w.start) || 0;
+        const extra = Math.floor((sm + w.durationMin)/1440);
+        lockNote.textContent = `🔒 دەستکاریکردنی هەر ڕۆژێک لە ${w.start}ی هەمان ڕۆژەوە دەست پێدەکات و تا ${minutesToTime((sm + w.durationMin) % 1440)}ی ${extra} ڕۆژ دواتر کراوەیە.`;
+      }
     } else if(!isEffectiveToday){
       lockNote.textContent = '🔒 تەنها بۆ ئەمڕۆ (یان شەفتی شەوی هێشتا نەتەواوبووی دوێنێ) دەستکاریکردن کراوەیە. بۆ ڕۆژانی تر تەنها سوپەر ئەدمین دەتوانێت دەستکاری بکات.';
     } else if(!withinWindow){
@@ -4576,7 +4607,7 @@ function saveDeptEdit(){
   const editStart = document.getElementById('editDeptEditStart').value || '00:00';
   let hours = parseFloat(document.getElementById('editDeptEditDuration').value);
   if(!hours || hours<=0) hours = 24;
-  if(hours>24) hours = 24;
+  if(hours>48) hours = 48;
   const durationMin = Math.round(hours*60);
   db.run(`UPDATE departments SET name=?, password=?, edit_start=?, edit_duration_min=?, phone=? WHERE id=?`,[name,pass,editStart,durationMin,phone,editingDeptId]);
   persistLocal();
