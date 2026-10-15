@@ -4252,12 +4252,14 @@ function printDayReport(){
       timeStr = parts.length ? parts.join(' — ') : '—';
     }
     idx++;
+    const noteStr = (dayNoteText[eid] && dayNoteText[eid].trim()) ? dayNoteText[eid].trim() : '';
     tableRows += `<tr>
       <td>${idx}</td>
       <td class="prName">${escapeHtml(name)}</td>
       <td>${escapeHtml(code ? code.toUpperCase() : '—')}</td>
       <td class="${statusClass}">${statusLabel}</td>
       <td>${escapeHtml(timeStr)}</td>
+      <td class="prNote">${escapeHtml(noteStr)}</td>
     </tr>`;
   });
   const total = presentCount+lateCount+absentCount;
@@ -4278,11 +4280,15 @@ function printDayReport(){
   th,td{ border:1px solid #888; padding:7px 8px; text-align:center; }
   th{ background:#eee; }
   .prName{ text-align:right; }
+  .prNote{ text-align:right; font-size:12px; min-width:90px; height:30px; }
+  .prNotesBox{ margin-top:18px; border:1px solid #888; border-radius:6px; padding:8px 10px; page-break-inside:avoid; }
+  .prNotesBox .t{ font-size:13.5px; font-weight:700; margin-bottom:4px; }
+  .prNotesBox .ln{ border-bottom:1px solid #bbb; height:26px; }
   .pr-present{ color:#1a7a1a; font-weight:700; }
   .pr-late{ color:#a25f08; font-weight:700; }
   .pr-absent{ color:#b30000; font-weight:700; }
   .prSummary{ margin-top:14px; font-size:13.5px; display:flex; gap:20px; flex-wrap:wrap; }
-  .prSign{ display:flex; justify-content:space-between; margin-top:80px; }
+  .prSign{ display:flex; justify-content:space-between; margin-top:50px; page-break-inside:avoid; }
   .prSignBox{ width:42%; text-align:center; }
   .prSignBox .line{ border-top:1px solid #333; margin-top:55px; padding-top:6px; font-size:13.5px; font-weight:700; }
   .prFooterNote{ margin-top:26px; font-size:11px; color:#777; text-align:left; }
@@ -4296,7 +4302,7 @@ function printDayReport(){
   </div>
   <table>
     <thead>
-      <tr><th>#</th><th>ناوی کارمەند</th><th>ئایدی</th><th>باری ئامادەبوون</th><th>کاتی هاتن / ڕۆشتن</th></tr>
+      <tr><th>#</th><th>ناوی کارمەند</th><th>ئایدی</th><th>باری ئامادەبوون</th><th>کاتی هاتن / ڕۆشتن</th><th style="width:26%;">تێبینی / نۆت</th></tr>
     </thead>
     <tbody>
       ${tableRows}
@@ -4307,6 +4313,10 @@ function printDayReport(){
     <span class="pr-present">✔ ئامادە: ${presentCount}</span>
     <span class="pr-late">🕒 درەنگ: ${lateCount}</span>
     <span class="pr-absent">✘ نەهاتوو: ${absentCount}</span>
+  </div>
+  <div class="prNotesBox">
+    <div class="t">تێبینییەکان:</div>
+    <div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div>
   </div>
   <div class="prSign">
     <div class="prSignBox"><div class="line">ئیمزای چاودێر</div></div>
