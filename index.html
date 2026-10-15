@@ -1192,7 +1192,21 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <select id="editEmpDept" class="selectBox" style="width:100%;margin:6px 0 10px;"></select>
     </div>
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" id="saveEmpEditBtn" onclick="saveEmployeeEdit()">💾 پاشەکەوتکردن</button>
+    <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" id="empAbsLinkBtn" onclick="openEmpAbsences()">📋 ڕۆژانی ئامادەنەبوونی کارمەند</button>
     <button class="btn btn-danger" style="width:100%;" id="deleteEmpBtn" onclick="deleteEmployee()">🗑️ سڕینەوەی کارمەند</button>
+  </div>
+</div>
+
+<div class="overlay" id="empAbsencesModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modalHead">
+      <h3>📋 ڕۆژانی ئامادەنەبوون</h3>
+      <button class="closeX" onclick="closeModal('empAbsencesModal')">✕</button>
+    </div>
+    <div id="empAbsHeader" style="font-size:13.5px;font-weight:800;margin-bottom:4px;"></div>
+    <div id="empAbsSummary" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
+    <div id="empAbsList" style="max-height:52vh;overflow-y:auto;margin-bottom:12px;"></div>
+    <button class="btn btn-outline" style="width:100%;" id="empAbsPrintBtn" onclick="printEmpAbsences()">🖨️ پرێنت</button>
   </div>
 </div>
 
@@ -4225,6 +4239,93 @@ function shareDayReportWhatsApp(){
 }
 
 /* پرێنتکردنی ڕاپۆرتی ئامادەبوونی ڕۆژ — کۆپیەک بۆ سەرۆکی بەش لەگەڵ شوێنی ئیمزای چاودێر + سەرپەرشتیار */
+const KU_WEEKDAYS_FULL = ['یەکشەممە','دووشەممە','سێشەممە','چوارشەممە','پێنجشەممە','هەینی','شەممە'];
+function getEmpAbsenceData(eid){
+  const info = db.exec(`SELECT name,emp_code FROM employees WHERE id=${eid}`);
+  const name = info.length && info[0].values.length ? info[0].values[0][0] : '';
+  const code = info.length && info[0].values.length ? (info[0].values[0][1]||'') : '';
+  const res = db.exec(`SELECT ea.year,ea.month,ea.day,COALESCE(d.name,'-'),ea.note FROM employee_attendance ea LEFT JOIN departments d ON d.id=COALESCE(ea.dept_id,(SELECT dept_id FROM employees WHERE id=ea.employee_id)) WHERE ea.employee_id=${eid} AND ea.status='absent' ORDER BY ea.year,ea.month,ea.day`);
+  const rows = res.length ? res[0].values.map(([y,m,d,deptName,note])=>{
+    const wd = KU_WEEKDAYS_FULL[new Date(y,m-1,d).getDay()];
+    return {y,m,d,deptName,note:note||'',wd};
+  }) : [];
+  return {name,code,rows};
+}
+function openEmpAbsences(){
+  if(!editingEmpId) return;
+  const {name,code,rows} = getEmpAbsenceData(editingEmpId);
+  document.getElementById('empAbsHeader').textContent = name + (code ? ` (${String(code).toUpperCase()})` : '');
+  document.getElementById('empAbsSummary').textContent = rows.length ? `کۆی ڕۆژانی ئامادەنەبوون: ${rows.length}` : '';
+  const list = document.getElementById('empAbsList');
+  const pb = document.getElementById('empAbsPrintBtn');
+  if(!rows.length){
+    list.innerHTML = '<div class="muted" style="text-align:center;padding:18px 0;">✅ ئەم کارمەندە هیچ ڕۆژێکی ئامادەنەبوونی نییە</div>';
+    if(pb) pb.style.display = 'none';
+  }else{
+    if(pb) pb.style.display = '';
+    let html = '', lastKey = '';
+    rows.forEach(r=>{
+      const key = r.y+'-'+r.m;
+      if(key!==lastKey){
+        const cnt = rows.filter(x=>x.y===r.y && x.m===r.m).length;
+        html += `<div class="dupTitle" style="margin-top:${lastKey?'12px':'0'};">${KURDISH_MONTHS[r.m-1]} ${r.y} <span class="dupBadge">${cnt}</span></div>`;
+        lastKey = key;
+      }
+      html += `<div class="dupRow"><span>${r.d} ${KURDISH_MONTHS[r.m-1]} • ${r.wd}${r.note?`<div class="muted" style="font-size:11px;">📝 ${escapeHtml(r.note)}</div>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`;
+    });
+    list.innerHTML = html;
+  }
+  openModal('empAbsencesModal');
+}
+function printEmpAbsences(){
+  if(!editingEmpId) return;
+  const {name,code,rows} = getEmpAbsenceData(editingEmpId);
+  if(!rows.length) return;
+  const printedAt = new Date().toLocaleString('en-GB');
+  const trs = rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d} ${KURDISH_MONTHS[r.m-1]} ${r.y}</td><td>${r.wd}</td><td>${escapeHtml(r.deptName)}</td><td class="prNote">${escapeHtml(r.note)}</td></tr>`).join('');
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ckb">
+<head>
+<meta charset="UTF-8">
+<title>ڕۆژانی ئامادەنەبوون - ${escapeHtml(name)}</title>
+<style>
+  *{ box-sizing:border-box; }
+  body{ font-family:'Segoe UI', Tahoma, Arial, sans-serif; padding:28px; color:#1a1a1a; }
+  .prHead{ text-align:center; margin-bottom:16px; border-bottom:2px solid #333; padding-bottom:12px; }
+  .prHead h1{ margin:0 0 6px; font-size:20px; }
+  .prHead .sub{ font-size:13.5px; color:#333; }
+  table{ width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+  th,td{ border:1px solid #888; padding:7px 8px; text-align:center; }
+  th{ background:#eee; }
+  .prNote{ text-align:right; font-size:12px; }
+  tr{ page-break-inside:avoid; }
+  .prSummary{ margin-top:14px; font-size:13.5px; font-weight:700; color:#b30000; }
+  .prFooterNote{ margin-top:26px; font-size:11px; color:#777; text-align:left; }
+  @media print{ body{ padding:8px; } }
+</style>
+</head>
+<body>
+  <div class="prHead">
+    <h1>ڕۆژانی ئامادەنەبوونی کارمەند</h1>
+    <div class="sub">کارمەند: ${escapeHtml(name)}${code ? ' &nbsp;|&nbsp; ئایدی: '+escapeHtml(String(code).toUpperCase()) : ''}</div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>بەروار</th><th>ڕۆژ</th><th>بەش</th><th>تێبینی</th></tr></thead>
+    <tbody>${trs}</tbody>
+  </table>
+  <div class="prSummary">کۆی ڕۆژانی ئامادەنەبوون: ${rows.length}</div>
+  <div class="prFooterNote">چاپکراوە: ${escapeHtml(printedAt)}</div>
+</body>
+</html>`;
+  const win = window.open('', '_blank');
+  if(!win){ showToast('تکایە ڕێگە بە پەنجەرەی popup بدە بۆ پرێنتکردن'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  const doPrint = ()=>{ try{ win.focus(); win.print(); }catch(e){} };
+  win.onload = doPrint;
+  setTimeout(doPrint, 350);
+}
 function printDayReport(){
   const deptRes = db.exec(`SELECT name FROM departments WHERE id=${currentDeptId}`);
   const deptName = deptRes.length && deptRes[0].values.length ? deptRes[0].values[0][0] : '';
