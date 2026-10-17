@@ -498,9 +498,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .empNameInline{font-weight:700;font-size:13.5px;white-space:nowrap;}
   .miniBadge{background:#f2f3f0;color:var(--muted);border-radius:7px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
   .empActionsRow{
-    display:flex;align-items:center;gap:8px;flex-wrap:nowrap;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:6px;
   }
-  .empToggleBtns{display:flex;gap:5px;flex:0 0 auto;margin-right:auto;padding-right:2px;}
+  .empToggleBtns{display:flex;align-items:center;gap:10px;flex:0 0 auto;margin-right:auto;padding-right:2px;}
   .empToggleBtn{
     padding:7px 10px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
     font-size:14px;font-weight:700;color:var(--muted);white-space:nowrap;line-height:1;flex-shrink:0;
@@ -581,7 +581,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .fcFoot .btn{padding:13px 8px;}
   .fcFoot .fcNav{flex:0 0 28%;}
   .fcFoot .btn:disabled{opacity:.4;}
-  .noteBtn{padding:7px 8px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;}
+  .noteBtn{padding:7px 9px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font-size:14px;color:var(--muted);flex-shrink:0;line-height:1;margin-inline-end:6px;}
   .noteBtn.has-note{background:#fff7d6;border-color:#dbd80f;color:#8a7c00;}
   .noteBox{margin-top:6px;display:none;}
   .noteBox.show{display:block;}
@@ -3877,9 +3877,9 @@ function openDayModal(day){
               oninput="onLateTimeInput(${eid},'end',this)" onfocus="onLateTimeInput(${eid},'end',this)">
             <div class="timeSuggest" id="lateEndSuggest_${eid}"></div>
           </div>
-          <button type="button" class="noteBtn${hasNote?' has-note':''}" id="noteBtn_${eid}" title="نۆت" onclick="toggleNoteBox(${eid})">✏️</button>
         </div>
         <div class="empToggleBtns">
+          <button type="button" class="noteBtn${hasNote?' has-note':''}" id="noteBtn_${eid}" title="نۆت" onclick="toggleNoteBox(${eid})">✏️</button>
           <button type="button" class="empToggleBtn" ${disabledAttr} title="ئامادە" onclick="setEmpDayStatus(${eid},'present')">✅</button>
           <button type="button" class="empToggleBtn" ${disabledAttr} title="درەنگ" onclick="setEmpDayStatus(${eid},'late')">🕒</button>
           <button type="button" class="empToggleBtn" ${disabledAttr} title="نەهاتوو" onclick="setEmpDayStatus(${eid},'absent')">❌</button>
