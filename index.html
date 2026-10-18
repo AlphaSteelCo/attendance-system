@@ -1187,7 +1187,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <input class="miniInput" id="editEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17، یان خۆت بینووسە" style="margin-top:2px;">
     <div id="employeeSinceWrap" style="display:none;">
-      <label class="muted" style="font-size:12px;">بەرواری دەستپێکی کارمەند (بەتاڵ = لە سەرەتاوە. دەتوانیت لە کاتی گۆڕینیدا هەڵبژێریت تۆمارە کۆنەکان بسڕدرێنەوە یان بمێنن)</label>
+      <label class="muted" style="font-size:12px;">بەرواری دەستپێکی کارمەند (بەتاڵ = لە سەرەتاوە. هیچ تۆمارێک ناسڕدرێتەوە)</label>
       <input type="date" class="miniInput" id="editEmpSince" style="margin:6px 0 10px;">
     </div>
     <div id="employeeTransferWrap" style="display:none;">
@@ -3226,16 +3226,15 @@ function saveEmployeeEdit(){
   }
   // بەرواری دەستپێکی دەستی: تۆمارەکانی پێش ئەو بەروارە لەم بەشەدا دەسڕدرێنەوە
   let sinceNewInt = null;
-  let sinceDeleteOld = false;
   if(currentUser.role==='admin' && newDeptId===editingEmpDeptId){
     const sv = document.getElementById('editEmpSince')?.value;
     if(sv && sv !== editEmpSinceInitial){
       sinceNewInt = parseInt(sv.replace(/-/g,''),10);
-      const cr = db.exec(`SELECT COUNT(*) FROM employee_attendance WHERE employee_id=${editingEmpId} AND COALESCE(dept_id,${editingEmpDeptId})=${editingEmpDeptId} AND (year*10000+month*100+day) < ${sinceNewInt}`);
-      const cnt = (cr.length && cr[0].values.length) ? cr[0].values[0][0] : 0;
-      if(cnt>0){
-        // OK = بیانسڕەوە، Cancel = بیانهێڵەوە و تەنها بەرواری دەستپێک بگۆڕە
-        sinceDeleteOld = confirm(`${cnt} تۆماری ئامادەبوون لەم بەشەدا هەیە کە پێش ئەو بەروارەن.\n\nOK = ئەو تۆمارانە بسڕەوە\nCancel = تۆمارەکان بهێڵەوە (تەنها بەرواری دەستپێک دەگۆڕێت)`);
+      // پشکنین: ئایا لەو بەروارەوە تۆمار هەیە کە لە بەشێکی تردا تۆمار کراوە؟ (هیچ تۆمارێک ناسڕدرێتەوە)
+      const cr = db.exec(`SELECT COALESCE(d.name,'-'), COUNT(*) FROM employee_attendance ea LEFT JOIN departments d ON d.id=ea.dept_id WHERE ea.employee_id=${editingEmpId} AND ea.dept_id IS NOT NULL AND ea.dept_id NOT IN (0,${editingEmpDeptId}) AND (ea.year*10000+ea.month*100+ea.day) >= ${sinceNewInt} GROUP BY ea.dept_id`);
+      if(cr.length && cr[0].values.length){
+        const lines = cr[0].values.map(([dn,c])=>`• ${dn}: ${c} ڕۆژ`).join('\n');
+        if(!confirm(`ئەم کارمەندە لەو بەروارەوە لە بەشێکی تر تۆمار کراوە:\n${lines}\n\nئەو تۆمارانە ناسڕدرێنەوە و لە بەشی خۆیان دەمێننەوە. بەڵام ئەگەر هەمان ڕۆژ لەم بەشەدا هەڵبگریت، تۆمارەکە دەگوازرێتەوە بۆ ئەم بەشە.\n\nبەردەوام بیت؟`)) return;
       }
     }
   }
@@ -3259,9 +3258,7 @@ function saveEmployeeEdit(){
       }else if(v){
         const sInt = parseInt(v.replace(/-/g,''),10);
         db.run(`UPDATE employees SET dept_since=?, since_blank=0 WHERE id=?`,[sInt, editingEmpId]);
-        if(sinceDeleteOld){
-          db.run(`DELETE FROM employee_attendance WHERE employee_id=? AND COALESCE(dept_id,?)=? AND (year*10000+month*100+day) < ?`,[editingEmpId, editingEmpDeptId, editingEmpDeptId, sInt]);
-        }
+
       }else{
         db.run(`UPDATE employees SET dept_since=NULL, since_blank=0 WHERE id=?`,[editingEmpId]);
       }
