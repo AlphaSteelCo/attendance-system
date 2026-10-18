@@ -3150,6 +3150,7 @@ function addEmployeeConfirm(){
 }
 
 let editingEmpId=null;
+let editEmpSinceInitial='';
 let editingEmpDeptId = null;
 function openEditEmployee(id){
   editingEmpId = id;
@@ -3172,6 +3173,7 @@ function openEditEmployee(id){
     }else{
       sinceInp.value = '';
     }
+    editEmpSinceInitial = sinceInp.value;
   }
   const canTransfer = currentUser.role==='admin' || (currentUser.role==='limited_admin' && currentUser.deptIds && currentUser.deptIds.length>1);
   const transferWrap = document.getElementById('employeeTransferWrap');
@@ -3226,7 +3228,7 @@ function saveEmployeeEdit(){
   let sinceNewInt = null;
   if(currentUser.role==='admin' && newDeptId===editingEmpDeptId){
     const sv = document.getElementById('editEmpSince')?.value;
-    if(sv){
+    if(sv && sv !== editEmpSinceInitial){
       sinceNewInt = parseInt(sv.replace(/-/g,''),10);
       const cr = db.exec(`SELECT COUNT(*) FROM employee_attendance WHERE employee_id=${editingEmpId} AND COALESCE(dept_id,${editingEmpDeptId})=${editingEmpDeptId} AND (year*10000+month*100+day) < ${sinceNewInt}`);
       const cnt = (cr.length && cr[0].values.length) ? cr[0].values[0][0] : 0;
@@ -3248,7 +3250,9 @@ function saveEmployeeEdit(){
     const sinceInp = document.getElementById('editEmpSince');
     if(sinceInp){
       const v = sinceInp.value; // YYYY-MM-DD یان بەتاڵ
-      if(v){
+      if(v === editEmpSinceInitial){
+        // بەرواری دەستپێک نەگۆڕدراوە: هیچ نەگۆڕێت و هیچ نەسڕێتەوە
+      }else if(v){
         const sInt = parseInt(v.replace(/-/g,''),10);
         db.run(`UPDATE employees SET dept_since=?, since_blank=0 WHERE id=?`,[sInt, editingEmpId]);
         db.run(`DELETE FROM employee_attendance WHERE employee_id=? AND COALESCE(dept_id,?)=? AND (year*10000+month*100+day) < ?`,[editingEmpId, editingEmpDeptId, editingEmpDeptId, sInt]);
