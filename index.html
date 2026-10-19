@@ -591,6 +591,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .lateTimeSep{color:var(--muted);font-size:11px;}
   .timeSuggest{position:absolute;top:100%;left:50%;transform:translateX(-50%);width:120px;background:#fff;border:1.5px solid var(--line);border-radius:10px;margin-top:4px;padding:6px;display:none;flex-wrap:wrap;gap:5px;z-index:30;box-shadow:0 4px 14px rgba(0,0,0,.15);}
   .timeSuggest.show{display:flex;}
+  #lateTimeModal{align-items:flex-start;}
+  #lateTimeModal .modal{margin-top:10vh;border-radius:18px;}
+  .lateTimeField input[readonly], #fcStart[readonly], #fcEnd[readonly]{cursor:pointer;}
   .timeSuggest button{flex:1 0 40%;padding:6px 2px;border-radius:7px;border:1.5px solid var(--line);background:#f8f8f6;font-size:11.5px;font-weight:700;color:var(--ink);}
   .timeSuggest button:hover{border-color:#c9760a;color:#a25f08;background:#fff3e0;}
   .absEmpCard{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff;}
@@ -974,12 +977,12 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         <div class="fcTimeRow">
           <div class="fcTimeBox">
             <label for="fcStart">کاتی هاتن</label>
-            <input type="text" id="fcStart" inputmode="numeric" autocomplete="off" placeholder="00:00" oninput="fcTimeInput('start',this)" onfocus="fcTimeInput('start',this)">
+            <input type="text" id="fcStart" readonly inputmode="none" autocomplete="off" placeholder="00:00" onclick="openLateTimeModal(fcEid)">
             <div class="fcChips" id="fcChipsStart"></div>
           </div>
           <div class="fcTimeBox">
             <label for="fcEnd">کاتی ڕۆشتن</label>
-            <input type="text" id="fcEnd" inputmode="numeric" autocomplete="off" placeholder="00:00" oninput="fcTimeInput('end',this)" onfocus="fcTimeInput('end',this)">
+            <input type="text" id="fcEnd" readonly inputmode="none" autocomplete="off" placeholder="00:00" onclick="openLateTimeModal(fcEid)">
             <div class="fcChips" id="fcChipsEnd"></div>
           </div>
         </div>
@@ -1273,6 +1276,30 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div style="display:flex;gap:8px;">
       <button class="btn btn-outline" style="flex:1;" onclick="closeModal('deleteDayConfirmModal')">پاشگەزبوونەوە</button>
       <button class="btn btn-danger" style="flex:1;" onclick="confirmDeleteDay()">🗑️ سڕینەوە</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="lateTimeModal">
+  <div class="modal" style="max-width:340px;">
+    <div class="modalHead">
+      <h3>🕒 کاتی درەنگ</h3>
+      <button class="closeX" onclick="closeModal('lateTimeModal')">✕</button>
+    </div>
+    <div id="lateTimeEmpName" style="font-size:13.5px;font-weight:800;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:10px;">
+      <div style="flex:1;">
+        <label class="muted" style="font-size:12px;">کاتی دەستپێک</label>
+        <input type="time" class="miniInput" id="lateTimeStartInp" style="margin:6px 0 0;width:100%;">
+      </div>
+      <div style="flex:1;">
+        <label class="muted" style="font-size:12px;">کاتی کۆتایی</label>
+        <input type="time" class="miniInput" id="lateTimeEndInp" style="margin:6px 0 0;width:100%;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="clearLateTimeModal()">پاککردنەوە</button>
+      <button class="btn" style="flex:1;" onclick="confirmLateTimeModal()">ئۆکەی</button>
     </div>
   </div>
 </div>
@@ -3872,16 +3899,16 @@ function openDayModal(day){
       <div class="empActionsRow">
         <div class="lateTimeInline" id="lateTimeBox_${eid}">
           <div class="lateTimeField">
-            <input type="text" inputmode="numeric" autocomplete="off" id="lateStart_${eid}"
+            <input type="text" readonly inputmode="none" autocomplete="off" id="lateStart_${eid}"
               placeholder="00:00" value="${escapeHtml(dayLateTimes[eid].start||'')}" ${disabledAttr}
-              oninput="onLateTimeInput(${eid},'start',this)" onfocus="onLateTimeInput(${eid},'start',this)">
+              onclick="openLateTimeModal(${eid})">
             <div class="timeSuggest" id="lateStartSuggest_${eid}"></div>
           </div>
           <span class="lateTimeSep">—</span>
           <div class="lateTimeField">
-            <input type="text" inputmode="numeric" autocomplete="off" id="lateEnd_${eid}"
+            <input type="text" readonly inputmode="none" autocomplete="off" id="lateEnd_${eid}"
               placeholder="00:00" value="${escapeHtml(dayLateTimes[eid].end||'')}" ${disabledAttr}
-              oninput="onLateTimeInput(${eid},'end',this)" onfocus="onLateTimeInput(${eid},'end',this)">
+              onclick="openLateTimeModal(${eid})">
             <div class="timeSuggest" id="lateEndSuggest_${eid}"></div>
           </div>
         </div>
@@ -3972,7 +3999,7 @@ function fcSetStatus(status){
   renderEmpFocus();
   if(dayAttendanceState[fcEid]==='late'){
     const t = dayLateTimes[fcEid] || {};
-    if(!t.start){ setTimeout(()=>{ const el=document.getElementById('fcStart'); if(el) el.focus(); }, 60); }
+    if(!t.start){ setTimeout(()=>openLateTimeModal(fcEid), 80); }
   }
 }
 function fcTimeInput(which, el){
@@ -4082,6 +4109,44 @@ function onNoteInput(eid, textareaEl){
 }
 
 /* بژاردەی خێرای کات: تایپکردنی ژمارەی سەعات (بۆ نموونە 7) کاتەکانی چارەکەکانی دەردەخات: 07:00, 07:15, 07:30, 07:45 */
+let lateTimeEid = null;
+function normTimeForInput(t){
+  const m = /^(\d{1,2}):(\d{2})$/.exec((t||'').trim());
+  if(!m) return '';
+  const h = parseInt(m[1],10), mi = parseInt(m[2],10);
+  if(h>23 || mi>59) return '';
+  return String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0');
+}
+function openLateTimeModal(eid){
+  if(!dayIsEditable){ showToast('🔒 تەنها ئەدمین دەتوانێت ڕۆژانی تر دەستکاری بکات'); return; }
+  lateTimeEid = eid;
+  const t = dayLateTimes[eid] || {start:'',end:''};
+  const r = db.exec(`SELECT name FROM employees WHERE id=${eid}`);
+  document.getElementById('lateTimeEmpName').textContent = (r.length && r[0].values.length) ? r[0].values[0][0] : '';
+  document.getElementById('lateTimeStartInp').value = normTimeForInput(t.start);
+  document.getElementById('lateTimeEndInp').value = normTimeForInput(t.end);
+  openModal('lateTimeModal');
+}
+function applyLateTimes(eid, start, end){
+  dayLateTimes[eid] = {start:start||'', end:end||''};
+  const a = document.getElementById(`lateStart_${eid}`), b = document.getElementById(`lateEnd_${eid}`);
+  if(a) a.value = start||'';
+  if(b) b.value = end||'';
+  if(typeof fcEid !== 'undefined' && fcEid===eid){
+    const fs = document.getElementById('fcStart'), fe = document.getElementById('fcEnd');
+    if(fs) fs.value = start||'';
+    if(fe) fe.value = end||'';
+  }
+}
+function confirmLateTimeModal(){
+  if(lateTimeEid==null) return;
+  applyLateTimes(lateTimeEid, document.getElementById('lateTimeStartInp').value, document.getElementById('lateTimeEndInp').value);
+  closeModal('lateTimeModal');
+}
+function clearLateTimeModal(){
+  document.getElementById('lateTimeStartInp').value = '';
+  document.getElementById('lateTimeEndInp').value = '';
+}
 function onLateTimeInput(eid, which, inputEl){
   if(!dayLateTimes[eid]) dayLateTimes[eid] = {start:'', end:''};
   dayLateTimes[eid][which] = inputEl.value;
