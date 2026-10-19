@@ -592,6 +592,10 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .timeSuggest{position:absolute;top:100%;left:50%;transform:translateX(-50%);width:120px;background:#fff;border:1.5px solid var(--line);border-radius:10px;margin-top:4px;padding:6px;display:none;flex-wrap:wrap;gap:5px;z-index:30;box-shadow:0 4px 14px rgba(0,0,0,.15);}
   .timeSuggest.show{display:flex;}
   #lateTimeModal{align-items:flex-start;}
+  .ltChips{display:none;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .ltChips.show{display:flex;}
+  .ltChips button{flex:1 0 40%;padding:8px 2px;border-radius:8px;border:1.5px solid var(--line);background:#f8f8f6;font-size:13px;font-weight:700;color:var(--ink);}
+  .ltChips button:active{border-color:#c9760a;color:#a25f08;background:#fff3e0;}
   #lateTimeModal .modal{margin-top:10vh;border-radius:18px;}
   .lateTimeField input[readonly], #fcStart[readonly], #fcEnd[readonly]{cursor:pointer;}
   .timeSuggest button{flex:1 0 40%;padding:6px 2px;border-radius:7px;border:1.5px solid var(--line);background:#f8f8f6;font-size:11.5px;font-weight:700;color:var(--ink);}
@@ -1290,11 +1294,13 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div style="display:flex;gap:10px;">
       <div style="flex:1;">
         <label class="muted" style="font-size:12px;">کاتی دەستپێک</label>
-        <input type="time" class="miniInput" id="lateTimeStartInp" style="margin:6px 0 0;width:100%;">
+        <input type="text" inputmode="numeric" autocomplete="off" placeholder="00:00" class="miniInput" id="lateTimeStartInp" style="margin:6px 0 0;width:100%;text-align:center;" oninput="ltPopInput('start',this)" onfocus="ltPopInput('start',this)">
+        <div class="ltChips" id="ltChipsStart"></div>
       </div>
       <div style="flex:1;">
         <label class="muted" style="font-size:12px;">کاتی کۆتایی</label>
-        <input type="time" class="miniInput" id="lateTimeEndInp" style="margin:6px 0 0;width:100%;">
+        <input type="text" inputmode="numeric" autocomplete="off" placeholder="00:00" class="miniInput" id="lateTimeEndInp" style="margin:6px 0 0;width:100%;text-align:center;" oninput="ltPopInput('end',this)" onfocus="ltPopInput('end',this)">
+        <div class="ltChips" id="ltChipsEnd"></div>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px;">
@@ -4125,7 +4131,52 @@ function openLateTimeModal(eid){
   document.getElementById('lateTimeEmpName').textContent = (r.length && r[0].values.length) ? r[0].values[0][0] : '';
   document.getElementById('lateTimeStartInp').value = normTimeForInput(t.start);
   document.getElementById('lateTimeEndInp').value = normTimeForInput(t.end);
+  ltHideChips();
   openModal('lateTimeModal');
+  if(!normTimeForInput(t.start)){
+    setTimeout(()=>{ const el=document.getElementById('lateTimeStartInp'); if(el) el.focus(); }, 150);
+  }
+}
+function ltHideChips(){
+  ['Start','End'].forEach(w=>{ const c=document.getElementById('ltChips'+w); if(c){ c.classList.remove('show'); c.innerHTML=''; } });
+}
+// پێشنیاری 00/15/30/45 بەپێی کاتژمێری نووسراو
+function ltPopInput(which, el){
+  const chips = document.getElementById('ltChips'+(which==='start'?'Start':'End'));
+  const digits = (el.value||'').replace(/[^0-9]/g,'');
+  if(!digits){ chips.classList.remove('show'); chips.innerHTML=''; return; }
+  let hour = parseInt(digits.slice(0,2),10);
+  if(isNaN(hour)) hour = parseInt(digits.slice(0,1),10);
+  if(isNaN(hour)){ chips.classList.remove('show'); chips.innerHTML=''; return; }
+  if(hour>23) hour = parseInt(digits.slice(0,1),10);
+  hour = Math.max(0, Math.min(23, hour));
+  const hh = String(hour).padStart(2,'0');
+  chips.innerHTML = ['00','15','30','45'].map(mm=>`<button type="button" onclick="ltPick('${which}','${hh}:${mm}')">${hh}:${mm}</button>`).join('');
+  chips.classList.add('show');
+}
+function ltPick(which, time){
+  const input = document.getElementById(which==='start' ? 'lateTimeStartInp' : 'lateTimeEndInp');
+  if(input) input.value = time;
+  const chips = document.getElementById('ltChips'+(which==='start'?'Start':'End'));
+  if(chips){ chips.classList.remove('show'); chips.innerHTML=''; }
+  if(which==='start'){
+    const e = document.getElementById('lateTimeEndInp');
+    if(e && !e.value) e.focus();
+  }
+}
+// ڕێکخستنی کاتی نووسراو: 0730 / 730 / 7 / 07:30 => HH:MM
+function normalizeTypedTime(v){
+  v = (v||'').trim();
+  const full = normTimeForInput(v);
+  if(full) return full;
+  const d = v.replace(/[^0-9]/g,'');
+  let h, m;
+  if(d.length===1 || d.length===2){ h = parseInt(d,10); m = 0; }
+  else if(d.length===3){ h = parseInt(d.slice(0,1),10); m = parseInt(d.slice(1),10); }
+  else if(d.length===4){ h = parseInt(d.slice(0,2),10); m = parseInt(d.slice(2),10); }
+  else return '';
+  if(isNaN(h) || isNaN(m) || h>23 || m>59) return '';
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
 }
 function applyLateTimes(eid, start, end){
   dayLateTimes[eid] = {start:start||'', end:end||''};
@@ -4140,12 +4191,13 @@ function applyLateTimes(eid, start, end){
 }
 function confirmLateTimeModal(){
   if(lateTimeEid==null) return;
-  applyLateTimes(lateTimeEid, document.getElementById('lateTimeStartInp').value, document.getElementById('lateTimeEndInp').value);
+  applyLateTimes(lateTimeEid, normalizeTypedTime(document.getElementById('lateTimeStartInp').value), normalizeTypedTime(document.getElementById('lateTimeEndInp').value));
   closeModal('lateTimeModal');
 }
 function clearLateTimeModal(){
   document.getElementById('lateTimeStartInp').value = '';
   document.getElementById('lateTimeEndInp').value = '';
+  ltHideChips();
 }
 function onLateTimeInput(eid, which, inputEl){
   if(!dayLateTimes[eid]) dayLateTimes[eid] = {start:'', end:''};
