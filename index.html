@@ -481,8 +481,17 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .modalHead h3{margin:0;font-size:16px;}
   /* دوگمەی داخستن (✕) هەمیشە لە سەرەوەی پەنجەرەکە دیار بێت، با سکرۆڵ بکرێت */
   .modal > .modalHead{position:sticky;top:-18px;z-index:20;background:#fff;margin:-18px -16px 14px;padding:18px 16px 10px;box-shadow:0 1px 0 var(--line);}
-  .modal > .modalHead .closeX{font-size:22px;line-height:1;padding:4px 8px;}
-  .closeX{background:none;border:none;font-size:20px;color:var(--muted);}
+  .modal > .modalHead .closeX{margin-inline-start:6px;}
+  .closeX{
+    width:32px;height:32px;min-width:32px;padding:0;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+    background:#e53935;color:#fff;border:2px solid #fff;
+    font-size:15px;font-weight:800;line-height:1;cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.28);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .closeX:hover{background:#d32f2f;}
+  .closeX:active{background:#b71c1c;transform:scale(.94);}
 
   .shiftRow{
     border:1.5px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px;
