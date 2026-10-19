@@ -5504,6 +5504,10 @@ if('serviceWorker' in navigator){
     top = Math.max(4, top);
     btn.style.left = left + 'px';
     btn.style.top = top + 'px';
+    // openModal() ژمارەی z-index زیاد دەکات، بۆیە دوگمەکە دەبێت هەمیشە لە سەرووی پەنجەرەی سەرەوە بێت
+    const ov = m.closest('.overlay');
+    const z = ov ? (parseInt(ov.style.zIndex,10) || parseInt(getComputedStyle(ov).zIndex,10) || 50) : 50;
+    btn.style.zIndex = String(z + 1);
     btn.classList.add('show');
     return true;
   }
