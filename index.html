@@ -490,6 +490,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     box-shadow:0 2px 6px rgba(0,0,0,.28);
     -webkit-tap-highlight-color:transparent;
   }
+  /* دوگمەی داخستنی گشتی: لە سەرەوەی چەپی پەنجەرەی کراوە، نیوەی لە دەرەوە */
+  #globalCloseBtn{position:fixed;display:none;z-index:55;width:34px;height:34px;min-width:34px;padding:0;border-radius:50%;
+    align-items:center;justify-content:center;background:#e53935;color:#fff;border:2px solid #fff;font-size:16px;font-weight:800;line-height:1;
+    cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);-webkit-tap-highlight-color:transparent;}
+  #globalCloseBtn.show{display:flex;}
+  #globalCloseBtn:hover{background:#d32f2f;}
+  #globalCloseBtn:active{background:#b71c1c;transform:scale(.94);}
+  .has-global-close .overlay .closeX{visibility:hidden;}
   .closeX:hover{background:#d32f2f;}
   .closeX:active{background:#b71c1c;transform:scale(.94);}
 
@@ -5472,4 +5480,51 @@ if('serviceWorker' in navigator){
 }
 </script>
 
+<button type="button" id="globalCloseBtn" aria-label="Close" title="Close">✕</button>
+<script>
+(function(){
+  const btn = document.getElementById('globalCloseBtn');
+  if(!btn) return;
+  let timer = null;
+  function topModal(){
+    const shown = Array.from(document.querySelectorAll('.overlay.show'));
+    for(let i=shown.length-1;i>=0;i--){
+      const m = shown[i].querySelector('.modal');
+      if(m && m.querySelector('.closeX')) return m;
+    }
+    return null;
+  }
+  function place(){
+    const m = topModal();
+    if(!m){ btn.classList.remove('show'); return false; }
+    const r = m.getBoundingClientRect();
+    const size = 34, off = 12;
+    let left = r.left - off, top = r.top - off;
+    left = Math.max(4, Math.min(left, window.innerWidth - size - 4));
+    top = Math.max(4, top);
+    btn.style.left = left + 'px';
+    btn.style.top = top + 'px';
+    btn.classList.add('show');
+    return true;
+  }
+  function refresh(){
+    const visible = place();
+    if(visible && !timer){ timer = setInterval(place, 200); }
+    if(!visible && timer){ clearInterval(timer); timer = null; }
+  }
+  btn.addEventListener('click', function(){
+    const m = topModal();
+    if(!m) return;
+    const x = m.querySelector('.closeX');
+    if(x) x.click();
+    setTimeout(refresh, 0);
+  });
+  const mo = new MutationObserver(refresh);
+  document.querySelectorAll('.overlay').forEach(o=>mo.observe(o,{attributes:true,attributeFilter:['class']}));
+  window.addEventListener('resize', refresh);
+  if(window.visualViewport){ window.visualViewport.addEventListener('resize', refresh); window.visualViewport.addEventListener('scroll', refresh); }
+  document.documentElement.classList.add('has-global-close');
+  refresh();
+})();
+</script>
 </body></html>
