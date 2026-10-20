@@ -5487,12 +5487,16 @@ if('serviceWorker' in navigator){
   if(!btn) return;
   let timer = null;
   function topModal(){
+    // سەرووترین پەنجەرە = ئەوەی z-index ـی زۆرترە (نەک ئەوەی دواتر لە کۆدەکەدایە)
     const shown = Array.from(document.querySelectorAll('.overlay.show'));
-    for(let i=shown.length-1;i>=0;i--){
-      const m = shown[i].querySelector('.modal');
-      if(m && m.querySelector('.closeX')) return m;
-    }
-    return null;
+    let best = null, bestZ = -1;
+    shown.forEach(ov=>{
+      const m = ov.querySelector('.modal');
+      if(!m || !m.querySelector('.closeX')) return;
+      const z = parseInt(ov.style.zIndex,10) || parseInt(getComputedStyle(ov).zIndex,10) || 0;
+      if(z >= bestZ){ best = m; bestZ = z; }
+    });
+    return best;
   }
   function place(){
     const m = topModal();
