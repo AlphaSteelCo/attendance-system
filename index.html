@@ -1045,8 +1045,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
         <button class="closeX" onclick="closeModal(&#39;deptDetailModal&#39;)">✕</button>
       </div>
       <div class="rowbetween" style="margin-bottom:10px;" id="deptDetailAddBtns">
-        <button class="btn btn-outline btn-sm" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
-        <button class="btn btn-outline btn-sm" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
+        <button class="btn btn-outline btn-sm" id="deptDetailAddEmpBtn" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
+        <button class="btn btn-outline btn-sm" id="deptDetailJsonBtn" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
+        <button class="btn btn-sm" id="deptDetailClearMonthBtn" style="display:none;background:#fff;color:#c0392b;border:1.5px solid #c0392b;" onclick="openClearDeptMonth()">🗑️ سڕینەوەی داتای مانگانە</button>
       </div>
       <input class="miniInput stickySearch" id="deptDetailSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderDeptDetailEmployees()">
     </div>
@@ -1323,6 +1324,24 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button class="btn btn-outline" style="flex:1;" onclick="clearLateTimeModal()">Clear</button>
       <button class="btn" style="flex:1;" onclick="confirmLateTimeModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="clearDeptMonthModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div class="modalHead">
+      <h3>🗑️ سڕینەوەی داتای مانگانە</h3>
+      <button class="closeX" onclick="closeModal('clearDeptMonthModal')">✕</button>
+    </div>
+    <p class="muted" style="font-size:13px;margin:0 0 10px;">بەش: <b id="clearMonthDeptName"></b></p>
+    <select id="clearMonthSel" class="selectBox" style="width:100%;margin-bottom:10px;"></select>
+    <p class="muted" style="font-size:12px;margin:0 0 14px;">هەموو تۆمارەکانی ئامادەبوونی ئەو مانگە بۆ ئەم بەشە دەسڕدرێنەوە و ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی سوپەر ئەدمین بنووسە</p>
+    <div class="pinField"><div id="clearMonthPassBoxes"></div><input type="hidden" id="clearMonthPass"><button type="button" class="pinEye" id="clearMonthPassEye" onclick="togglePinVisibility('clearMonthPassBoxes','clearMonthPassEye')">👁️ پیشاندان</button></div>
+    <div id="clearMonthError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal('clearDeptMonthModal')">پاشگەزبوونەوە</button>
+      <button class="btn btn-danger" style="flex:1;" id="clearMonthConfirmBtn" onclick="confirmClearDeptMonth()">🗑️ سڕینەوە</button>
     </div>
   </div>
 </div>
@@ -2528,6 +2547,7 @@ buildPinBoxes('adminUnlockPinBoxes', 'adminUnlockPass', 8, ()=>submitAdminUnlock
 // هەمان ستایلی چوونەژوورەوە بۆ هەموو وشە نهێنیەکانی تر
 buildPinBoxes('deleteEmpPassBoxes', 'deleteEmpPass', 4, ()=>confirmDeleteEmployee());
 buildPinBoxes('deleteDayPassBoxes', 'deleteDayPass', 4, ()=>confirmDeleteDay());
+buildPinBoxes('clearMonthPassBoxes', 'clearMonthPass', 4, ()=>confirmClearDeptMonth());
 buildPinBoxes('newDeptPassBoxes', 'newDeptPass', 4, null, {small:true});
 buildPinBoxes('editDeptPassBoxes', 'editDeptPass', 4, null, {small:true});
 buildPinBoxes('laPassBoxes', 'laPass', 4, null, {small:true});
@@ -3494,10 +3514,65 @@ function openDeptDetail(id){
   document.getElementById('deptDetailTitle').textContent = deptName;
   document.getElementById('deptDetailSearch').value = '';
   const addBtnsWrap = document.getElementById('deptDetailAddBtns');
-  if(addBtnsWrap) addBtnsWrap.style.display = hasPerm('add') ? '' : 'none';
+  // بەشی استیقالە: لەبری زیادکردن بە JSON، دوگمەی سڕینەوەی داتای مانگانە پیشان دەدرێت
+  const isResDept = RESIGNATION_DEPT_NAMES.includes((deptName||'').trim());
+  const canClear = isResDept && hasPerm('delete', id);
+  const jsonB = document.getElementById('deptDetailJsonBtn');
+  const clrB = document.getElementById('deptDetailClearMonthBtn');
+  const addB = document.getElementById('deptDetailAddEmpBtn');
+  if(jsonB) jsonB.style.display = (isResDept || !hasPerm('add')) ? 'none' : '';
+  if(addB) addB.style.display = hasPerm('add') ? '' : 'none';
+  if(clrB) clrB.style.display = canClear ? '' : 'none';
+  if(addBtnsWrap) addBtnsWrap.style.display = (hasPerm('add') || canClear) ? '' : 'none';
   renderDeptDetailEmployees();
   closeModal('allDeptsModal');
   openModal('deptDetailModal');
+}
+function openClearDeptMonth(){
+  if(!deptDetailId) return;
+  const res = db.exec(`SELECT year,month,COUNT(*) FROM employee_attendance WHERE COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${deptDetailId} GROUP BY year,month ORDER BY year DESC,month DESC`);
+  const sel = document.getElementById('clearMonthSel');
+  const btn = document.getElementById('clearMonthConfirmBtn');
+  const nm = db.exec(`SELECT name FROM departments WHERE id=${deptDetailId}`);
+  document.getElementById('clearMonthDeptName').textContent = nm.length && nm[0].values.length ? nm[0].values[0][0] : '';
+  if(!res.length || !res[0].values.length){
+    sel.innerHTML = '<option value="">هیچ داتایەکی مانگانە نییە</option>';
+    sel.disabled = true; if(btn) btn.disabled = true;
+  }else{
+    sel.disabled = false; if(btn) btn.disabled = false;
+    sel.innerHTML = res[0].values.map(([y,m,c])=>`<option value="${y}-${m}">${KURDISH_MONTHS[m-1]} ${y} (${c} تۆمار)</option>`).join('');
+  }
+  pinClear('clearMonthPassBoxes');
+  document.getElementById('clearMonthError').textContent = '';
+  openModal('clearDeptMonthModal');
+  pinFocus('clearMonthPassBoxes');
+}
+function confirmClearDeptMonth(){
+  const host = document.getElementById('clearMonthPassBoxes');
+  if(host && host.classList.contains('success')) return;
+  const errEl = document.getElementById('clearMonthError');
+  const v = document.getElementById('clearMonthSel').value;
+  if(!v){ errEl.textContent = 'هیچ مانگێک هەڵنەبژێردراوە'; return; }
+  if(!hasPerm('delete', deptDetailId)){ errEl.textContent = 'دەسەڵاتی سڕینەوەت نییە'; return; }
+  const pass = document.getElementById('clearMonthPass').value;
+  if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
+  const superAdminPass = getSetting('admin_password');
+  if(superAdminPass==null || pass !== superAdminPass){
+    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
+    pinFail('clearMonthPassBoxes');
+    return;
+  }
+  errEl.textContent = '';
+  const [y,m] = v.split('-').map(Number);
+  pinSuccess('clearMonthPassBoxes', ()=>{
+    db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=?`,[y,m,deptDetailId]);
+    persistLocal();
+    bumpDeptChange(deptDetailId, 'Del', 'داتای مانگانە', `${KURDISH_MONTHS[m-1]} ${y}`);
+    closeModal('clearDeptMonthModal');
+    pinClear('clearMonthPassBoxes');
+    showToast(`داتای ${KURDISH_MONTHS[m-1]} ${y} سڕایەوە 🗑️`);
+    debouncedSync();
+  });
 }
 function renderDeptDetailEmployees(){
   const wrap = document.getElementById('deptDetailEmployeesList');
