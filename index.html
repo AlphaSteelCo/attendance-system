@@ -694,6 +694,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dupGroupHead{font-size:12.5px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .dupRow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;padding:4px 0;border-top:1px dashed var(--line);}
   .dupRow:first-of-type{border-top:none;}
+  .dupRow.fri{background:#e6f4ea;border-radius:8px;padding:5px 8px;}
   .dupBadge{font-size:10.5px;padding:2px 7px;border-radius:999px;background:#eef0ea;color:var(--muted);white-space:nowrap;}
   .dupBadge.same{background:#fdecea;color:var(--bad);font-weight:700;}
   .dupTitle{font-size:13px;font-weight:800;margin:10px 0 6px;}
@@ -4503,7 +4504,7 @@ function getEmpAbsenceData(eid){
   const rows = res.length ? res[0].values.map(([y,m,d,deptName,note,status,st,en])=>{
     const wd = KU_WEEKDAYS_FULL[new Date(y,m-1,d).getDay()];
     const parts = []; if(st) parts.push(st); if(en) parts.push(en);
-    return {y,m,d,deptName,note:note||'',wd,status,timeStr:parts.join(' — ')};
+    return {y,m,d,deptName,note:note||'',wd,status,timeStr:parts.join(' — '),isFri:new Date(y,m-1,d).getDay()===5};
   }) : [];
   return {name,code,rows};
 }
@@ -4574,7 +4575,7 @@ function renderEmpAbsences(){
     }
     const color = r.status==='late' ? '#a25f08' : 'var(--bad)';
     const extra = [r.status==='late' && r.timeStr ? '⏱ '+escapeHtml(r.timeStr) : '', r.note ? '📝 '+escapeHtml(r.note) : ''].filter(Boolean).join(' &nbsp; ');
-    html += `<div class="dupRow"><span>${r.d} ${KURDISH_MONTHS[r.m-1]} • ${r.wd} <b style="color:${color};font-size:11.5px;">${empAbsStatusLabel(r.status)}</b>${extra?`<div class="muted" style="font-size:11px;">${extra}</div>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`;
+    html += `<div class="dupRow${r.isFri?' fri':''}"><span>${r.d} ${KURDISH_MONTHS[r.m-1]} • ${r.wd} <b style="color:${color};font-size:11.5px;">${empAbsStatusLabel(r.status)}</b>${extra?`<div class="muted" style="font-size:11px;">${extra}</div>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`;
   });
   list.innerHTML = html;
 }
@@ -4594,7 +4595,7 @@ function printEmpAbsences(){
   const abs = rows.filter(r=>r.status==='absent').length;
   const late = rows.filter(r=>r.status==='late').length;
   const printedAt = new Date().toLocaleString('en-GB');
-  const trs = rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.d} ${KURDISH_MONTHS[r.m-1]} ${r.y}</td><td>${r.wd}</td><td class="${r.status==='late'?'pr-late':'pr-absent'}">${empAbsStatusLabel(r.status)}</td><td>${escapeHtml(r.status==='late' ? (r.timeStr||'—') : '—')}</td><td>${escapeHtml(r.deptName)}</td><td class="prNote">${escapeHtml(r.note)}</td></tr>`).join('');
+  const trs = rows.map((r,i)=>`<tr${r.isFri?' class="pr-fri"':''}><td>${i+1}</td><td>${r.d} ${KURDISH_MONTHS[r.m-1]} ${r.y}</td><td>${r.wd}</td><td class="${r.status==='late'?'pr-late':'pr-absent'}">${empAbsStatusLabel(r.status)}</td><td>${escapeHtml(r.status==='late' ? (r.timeStr||'—') : '—')}</td><td>${escapeHtml(r.deptName)}</td><td class="prNote">${escapeHtml(r.note)}</td></tr>`).join('');
   const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ckb">
 <head>
@@ -4612,6 +4613,7 @@ function printEmpAbsences(){
   .prNote{ text-align:right; font-size:12px; }
   .pr-late{ color:#a25f08; font-weight:700; }
   .pr-absent{ color:#b30000; font-weight:700; }
+  tr.pr-fri td{ background:#e6f4ea; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   tr{ page-break-inside:avoid; }
   .prSummary{ margin-top:14px; font-size:13.5px; font-weight:700; display:flex; gap:20px; flex-wrap:wrap; }
   .prFooterNote{ margin-top:26px; font-size:11px; color:#777; text-align:left; }
