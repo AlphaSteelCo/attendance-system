@@ -1373,6 +1373,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal('uniformModal')">✕</button>
     </div>
     <div id="uniEmpName" style="font-weight:800;font-size:13.5px;margin-bottom:10px;"></div>
+    <div id="uniStockLine" class="muted" style="font-size:12px;margin-bottom:8px;"></div>
     <label class="muted" style="font-size:12px;">بەرواری وەرگرتن</label>
     <input type="date" class="miniInput" id="uniDate" style="margin:6px 0 12px;width:100%;">
     <div class="uniItemRow">
@@ -1397,10 +1398,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <h3>👕 ڕاپۆرتی پۆشاک و پێڵاو</h3>
       <button class="closeX" onclick="closeModal('uniformReportModal')">✕</button>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <select id="uniRepDept" class="selectBox" style="flex:1;" onchange="onUniRepDeptChange()"></select>
-      <select id="uniRepMonth" class="selectBox" style="flex:1;" onchange="renderUniformReport()"></select>
-    </div>
+    <div class="dupTitle" style="margin-top:0;">📦 کۆگا</div>
+    <div id="uniStockPanel" style="margin-bottom:10px;"></div>
+    <select id="uniRepMonth" class="selectBox" style="width:100%;margin-bottom:8px;" onchange="renderUniformReport()"></select>
     <div id="uniRepSummary" class="muted" style="font-size:12px;margin-bottom:8px;"></div>
     <div id="uniRepList" style="max-height:52vh;overflow-y:auto;margin-bottom:12px;"></div>
     <button class="btn btn-outline" style="width:100%;" id="uniRepPrintBtn" onclick="printUniformReport()">🖨️ پرێنت</button>
@@ -1756,6 +1756,8 @@ function ensureSchema(){
   // پۆشاک و پێڵاو: هەر وەرگرتنێک (کارمەند، بەش، جۆر، سایز، بەروار YYYYMMDD)
   db.run(`CREATE TABLE IF NOT EXISTS employee_uniform (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, dept_id INTEGER, item TEXT NOT NULL, size TEXT, received INTEGER NOT NULL)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_uniform_emp ON employee_uniform (employee_id, item)`);
+  // کۆگا: کۆی پۆشاک و پێڵاو کە هەیە
+  db.run(`CREATE TABLE IF NOT EXISTS uniform_stock (item TEXT PRIMARY KEY, qty INTEGER NOT NULL DEFAULT 0)`);
   // خشتەی ڕیکۆردی گۆڕانکاریەکان: هەر گۆڕانکارییەک (زیادکردن/دەستکاری/سڕینەوە) بە جیا تۆمار دەکرێت
   // action: 'New' (زیادکراو) | 'Upd' (نوێکراوەتەوە) | 'Del' (سڕدراوەتەوە)
   db.run(`CREATE TABLE IF NOT EXISTS change_log (
@@ -3290,11 +3292,62 @@ function openUniformModal(empId){
   renderUniformModal(true);
   openModal('uniformModal');
 }
+function getUniStock(item){
+  const r = db.exec(`SELECT qty FROM uniform_stock WHERE item='${item}'`);
+  return (r.length && r[0].values.length) ? r[0].values[0][0] : null; // null = هێشتا دانەنراوە
+}
+function setUniStock(item, qty){
+  db.run(`INSERT INTO uniform_stock (item,qty) VALUES (?,?) ON CONFLICT(item) DO UPDATE SET qty=excluded.qty`,[item, Math.max(0, Math.round(qty))]);
+}
+// کەمکردنەوە یان زیادکردنی کۆگا بە 1 (ئەگەر کۆگا دانرابێت)
+function adjustUniStock(item, delta){
+  const cur = getUniStock(item);
+  if(cur===null) return;
+  setUniStock(item, cur + delta);
+}
+function uniStockText(){
+  return Object.keys(UNI_ITEMS).map(k=>{
+    const q = getUniStock(k);
+    return `${UNI_ITEMS[k].icon} ${q===null?'—':q}`;
+  }).join('  •  ');
+}
+function renderUniStockPanel(){
+  const wrap = document.getElementById('uniStockPanel');
+  if(!wrap) return;
+  const isAdmin = currentUser && currentUser.role==='admin';
+  wrap.innerHTML = Object.keys(UNI_ITEMS).map(k=>{
+    const it = UNI_ITEMS[k];
+    const q = getUniStock(k);
+    const low = (q!==null && q<=0);
+    const ctrl = isAdmin ? `<div style="display:flex;gap:6px;margin-top:6px;">
+        <input type="number" min="0" class="miniInput" id="uniStockInput_${k}" placeholder="ژمارە" style="flex:1;margin:0;">
+        <button class="btn btn-outline btn-sm" onclick="uniStockApply('${k}','add')">➕ زیادکردن</button>
+        <button class="btn btn-outline btn-sm" onclick="uniStockApply('${k}','set')">دانانی کۆ</button>
+      </div>` : '';
+    return `<div class="dupGroup" style="margin-bottom:8px;">
+      <div class="dupGroupHead" style="margin-bottom:0;justify-content:space-between;"><span>${it.icon} ${it.label} لە کۆگا</span><span class="uniDate${low?' old':''}">${q===null?'دانەنراوە':q}</span></div>${ctrl}</div>`;
+  }).join('');
+}
+function uniStockApply(item, mode){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین دەتوانێت کۆگا دەستکاری بکات'); return; }
+  const inp = document.getElementById('uniStockInput_'+item);
+  const n = parseInt(inp && inp.value, 10);
+  if(isNaN(n) || n<0 || (mode==='add' && n===0)){ showToast('ژمارەیەکی دروست بنووسە'); return; }
+  const cur = getUniStock(item) || 0;
+  setUniStock(item, mode==='add' ? cur + n : n);
+  persistLocal();
+  if(inp) inp.value = '';
+  renderUniStockPanel();
+  debouncedSync();
+  showToast('کۆگا نوێکرایەوە ✅');
+}
 function uniEmpRows(){
   const r = db.exec(`SELECT id,item,size,received FROM employee_uniform WHERE employee_id=${uniEmpId} ORDER BY received DESC, id DESC`);
   return r.length ? r[0].values.map(([id,item,size,received])=>({id,item,size:size||'',received})) : [];
 }
 function renderUniformModal(prefill){
+  const sl = document.getElementById('uniStockLine');
+  if(sl) sl.textContent = 'کۆگا: ' + uniStockText();
   const rows = uniEmpRows();
   const last = {};
   rows.forEach(r=>{ if(!last[r.item]) last[r.item]=r; });
@@ -3331,8 +3384,11 @@ function saveUniform(){
   if(document.getElementById('uniChkClothes').checked) items.push(['clothes', document.getElementById('uniSizeClothes').value.trim()]);
   if(document.getElementById('uniChkShoes').checked) items.push(['shoes', document.getElementById('uniSizeShoes').value.trim()]);
   if(!items.length){ showToast('پۆشاک یان پێڵاو هەڵبژێرە'); return; }
+  const empty = items.filter(([item])=>{ const q=getUniStock(item); return q!==null && q<=0; }).map(([item])=>UNI_ITEMS[item].label);
+  if(empty.length && !confirm(`کۆگای ${empty.join(' و ')} بەتاڵە. دەتەوێت هەر تۆمار بکرێت؟`)) return;
   items.forEach(([item,size])=>{
     db.run(`INSERT INTO employee_uniform (employee_id,dept_id,item,size,received) VALUES (?,?,?,?,?)`,[uniEmpId,uniEmpDeptId,item,size,dInt]);
+    adjustUniStock(item, -1);
   });
   persistLocal();
   try{ bumpDeptChange(uniEmpDeptId, 'Upd', 'پۆشاک و پێڵاو', document.getElementById('uniEmpName').textContent); }catch(e){}
@@ -3345,8 +3401,11 @@ function saveUniform(){
 }
 function deleteUniformRow(id){
   if(!uniEmpId || !hasUniformPerm(uniEmpDeptId)) return;
-  if(!confirm('ئەم تۆمارە بسڕدرێتەوە؟')) return;
+  if(!confirm('ئەم تۆمارە بسڕدرێتەوە؟ (یەک دانە دەگەڕێتەوە بۆ کۆگا)')) return;
+  const dr = db.exec(`SELECT item FROM employee_uniform WHERE id=${id} AND employee_id=${uniEmpId}`);
+  const delItem = (dr.length && dr[0].values.length) ? dr[0].values[0][0] : null;
   db.run(`DELETE FROM employee_uniform WHERE id=? AND employee_id=?`,[id,uniEmpId]);
+  if(delItem) adjustUniStock(delItem, +1);
   persistLocal();
   renderUniformModal(false);
   refreshUniformLists();
@@ -3368,18 +3427,13 @@ function loadUniRepData(){
 function openUniformReport(){
   if(!hasUniformPerm(null)){ showToast('🔒 دەسەڵاتی پۆشاک و پێڵاوت نییە'); return; }
   loadUniRepData();
-  const ids = uniformAllowedDeptIds();
-  const dr = ids.length ? db.exec(`SELECT id,name FROM departments WHERE id IN (${ids.join(',')}) ORDER BY name`) : [];
-  const sel = document.getElementById('uniRepDept');
-  sel.innerHTML = '<option value="all">هەموو بەشەکان</option>' + (dr.length ? dr[0].values.map(([id,n])=>`<option value="${id}">${escapeHtml(n)}</option>`).join('') : '');
-  sel.value = 'all';
+  renderUniStockPanel();
   buildUniRepMonths('all');
   renderUniformReport();
   openModal('uniformReportModal');
 }
 function uniRepRowsByDept(){
-  const v = document.getElementById('uniRepDept').value;
-  return v==='all' ? uniRepData : uniRepData.filter(r=>String(r.did)===v);
+  return uniRepData;
 }
 function buildUniRepMonths(keep){
   const base = uniRepRowsByDept();
@@ -3393,10 +3447,6 @@ function buildUniRepMonths(keep){
   const sel = document.getElementById('uniRepMonth');
   sel.innerHTML = o;
   sel.value = (keep && counts.has(parseInt(keep,10))) ? keep : 'all';
-}
-function onUniRepDeptChange(){
-  buildUniRepMonths(document.getElementById('uniRepMonth').value);
-  renderUniformReport();
 }
 function uniRepFiltered(){
   const mv = document.getElementById('uniRepMonth').value;
@@ -3448,8 +3498,7 @@ function printUniformReport(){
   const rows = uniRepFiltered();
   if(!rows.length) return;
   const months = uniRepGroups(rows);
-  const dsel = document.getElementById('uniRepDept');
-  const deptLabel = dsel.options[dsel.selectedIndex] ? dsel.options[dsel.selectedIndex].text : '';
+  const deptLabel = 'کۆگا: ' + uniStockText();
   let body = '';
   [...months.keys()].sort((a,b)=>b-a).forEach(mk=>{
     const y=Math.floor(mk/100), m=mk%100;
