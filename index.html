@@ -698,6 +698,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dupBadge{font-size:10.5px;padding:2px 7px;border-radius:999px;background:#eef0ea;color:var(--muted);white-space:nowrap;}
   .dupBadge.same{background:#fdecea;color:var(--bad);font-weight:700;}
   .dupTitle{font-size:13px;font-weight:800;margin:10px 0 6px;}
+  .uniformOnly .tabsRow, .uniformOnly #calendarCard, .uniformOnly #shiftsCard, .uniformOnly #monthlyView, .uniformOnly #dailyReminderBanner, .uniformOnly #empAbsLinkBtn{display:none !important;}
   .uniItemRow{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   .uniItemRow label{flex:0 0 42%;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;cursor:pointer;}
   .uniItemRow .miniInput{flex:1;margin:0;}
@@ -859,7 +860,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div id="dailyView">
 
     <!-- Year + Month -->
-    <div class="card">
+    <div class="card" id="calendarCard">
       <div class="rowbetween" style="margin-bottom:10px;">
         <div class="sectionTitle" style="margin:0;">📅 ساڵنامەی ئامادەبوون</div>
         <div style="display:flex;gap:8px;">
@@ -1549,9 +1550,12 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <input class="miniInput" id="laName" placeholder="ناوی ئەدمین">
     <div class="pinField"><div class="pinLabel">وشەی نهێنی (٤ ژمارە)</div><div id="laPassBoxes"></div><input type="hidden" id="laPass"><button type="button" class="pinEye" id="laPassEye" onclick="togglePinVisibility('laPassBoxes','laPassEye')">👁️ پیشاندان</button></div>
 
+    <label style="display:flex;align-items:flex-start;gap:8px;margin:12px 0 4px;font-size:13px;font-weight:700;cursor:pointer;"><input type="checkbox" id="laUniformOnly" onchange="toggleLaUniformOnly(this.checked)" style="margin-top:3px;"><span>👕 تەنها پۆشاک و پێڵاو<br><span class="muted" style="font-weight:400;font-size:11.5px;">هەموو بەشەکان و کارمەندەکان دەبینێت و پۆشاک و پێڵاو تۆمار دەکات، بەڵام ڕۆژانە و مانگانە نابینێت.</span></span></label>
+    <div id="laDeptsSection">
     <div class="sectionTitle" style="margin-top:10px;">بەشەکان و دەسەڵاتی هەر بەشێک</div>
     <div class="muted" style="font-size:11.5px;margin-bottom:8px;">بەشێک هەڵبژێرە بۆ ئەوەی ئەم ئەدمینە ببینێت، پاشان دیاری بکە چ دەسەڵاتێکی تێدا هەبێت.</div>
     <div id="laDeptsCheckboxes" style="max-height:320px;overflow-y:auto;margin-bottom:12px;"></div>
+    </div>
 
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="saveLimitedAdmin()">💾 پاشەکەوتکردن</button>
     <button class="btn btn-danger" style="width:100%;" id="laDeleteBtn" onclick="deleteLimitedAdmin()">🗑️ سڕینەوەی ئەم ئەدمینە</button>
@@ -1749,6 +1753,12 @@ function ensureSchema(){
   }
   if(!ladColNames.includes('can_uniform')){
     db.run(`ALTER TABLE limited_admin_depts ADD COLUMN can_uniform INTEGER DEFAULT 0`);
+  }
+  // ئەدمینی سنوردار: تەنها پۆشاک و پێڵاو (هەموو بەشەکان، بێ ڕۆژانە و مانگانە)
+  const laInfo = db.exec(`PRAGMA table_info(limited_admins)`);
+  const laColNames = laInfo.length ? laInfo[0].values.map(v=>v[1]) : [];
+  if(!laColNames.includes('uniform_only')){
+    db.run(`ALTER TABLE limited_admins ADD COLUMN uniform_only INTEGER DEFAULT 0`);
   }
   // خشتەی چاودێری گۆڕانکاری بەش‌بەش، بۆ ئاگادارکردنەوەی ئەدمینەکان لە ئامێرێکی تر
   // کاتێک سەرپەرشتیارێک لە ئامێری خۆیەوە داتای بەشەکەی نوێ دەکاتەوە
@@ -2713,20 +2723,12 @@ async function doLogin(){
   const laRes = db.exec(`SELECT id,name FROM limited_admins WHERE password='${pass.replace(/'/g,"''")}'`);
   if(laRes.length && laRes[0].values.length){
     const [id,name] = laRes[0].values[0];
-    const deptRes = db.exec(`SELECT dept_id,can_add,can_edit,can_delete,can_daily,can_uniform FROM limited_admin_depts WHERE admin_id=${id}`);
-    const deptIds = [];
-    const deptPerms = {};
-    if(deptRes.length){
-      deptRes[0].values.forEach(([did,ca,ce,cd,cdaily,cu])=>{
-        deptIds.push(did);
-        deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd, canDaily:!!cdaily, canUniform:!!cu};
-      });
-    }
-    if(!deptIds.length){
-      errEl.textContent = 'ئەم ئەدمینە هیچ بەشێکی دیاریکراوی نییە، پەیوەندی بە سوپەر ئەدمین بکە';
+    const acc = loadLimitedAdminAccess(id);
+    if(!acc.deptIds.length){
+      errEl.textContent = 'ئەم ئەدمینە هیچ بەشێکی بۆ دیاری نەکراوە، تکایە پەیوەندی بە ئەدمینی سەرەکییەوە بکە';
       return;
     }
-    currentUser = {role:'limited_admin', adminId:id, name, deptIds, deptPerms};
+    currentUser = {role:'limited_admin', adminId:id, name, deptIds:acc.deptIds, deptPerms:acc.deptPerms, uniformOnly:acc.uniformOnly};
     resetLoginLockState();
     pinSuccess('loginPinBoxes', finishLogin);
     return;
@@ -2756,6 +2758,7 @@ function finishLogin(){
   document.getElementById('whoName').textContent = isFullAdmin ? 'بەڕێوەبەری سیستەم' : (isLimitedAdmin ? currentUser.name : currentUser.deptName);
   document.getElementById('whoRole').textContent = isFullAdmin ? 'دەسەڵاتی تەواو' : (isLimitedAdmin ? 'ئەدمینی سنووردار' : 'سەرپەرشتیار بەش');
   document.getElementById('settingsBtn').style.display = isFullAdmin ? 'flex':'none';
+  document.documentElement.classList.toggle('uniformOnly', !!currentUser.uniformOnly);
   document.getElementById('deptPickerCard').style.display = (isFullAdmin || isLimitedAdmin) ? 'block':'none';
   document.getElementById('allDeptsBtnCard').style.display = (isFullAdmin || isLimitedAdmin) ? 'block':'none';
   const uniRepBtn = document.getElementById('uniformReportBtn');
@@ -2846,17 +2849,10 @@ function tryRestoreSession(){
       const res = db.exec(`SELECT id,name FROM limited_admins WHERE id=${id}`);
       if(res.length && res[0].values.length){
         const [rid,name] = res[0].values[0];
-        const deptRes = db.exec(`SELECT dept_id,can_add,can_edit,can_delete,can_daily,can_uniform FROM limited_admin_depts WHERE admin_id=${rid}`);
-        const deptIds = [];
-        const deptPerms = {};
-        if(deptRes.length){
-          deptRes[0].values.forEach(([did,ca,ce,cd,cdaily,cu])=>{
-            deptIds.push(did);
-            deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd, canDaily:!!cdaily, canUniform:!!cu};
-          });
-        }
+        const acc = loadLimitedAdminAccess(rid);
+        const deptIds = acc.deptIds;
         if(deptIds.length){
-          currentUser = {role:'limited_admin', adminId:rid, name, deptIds, deptPerms};
+          currentUser = {role:'limited_admin', adminId:rid, name, deptIds, deptPerms:acc.deptPerms, uniformOnly:acc.uniformOnly};
           finishLogin();
           return true;
         }
@@ -2971,6 +2967,7 @@ function onDeptChange(){
    دیمەنی سەرەکی: ڕۆژانە <-> ڕاپۆرتی مانگانە
    ====================================================================== */
 function setMainTab(tab){
+  if(currentUser && currentUser.uniformOnly) tab = 'daily';
   const isDaily = tab==='daily';
   document.getElementById('dailyView').style.display = isDaily ? 'block':'none';
   document.getElementById('monthlyView').style.display = isDaily ? 'none':'block';
@@ -3230,6 +3227,26 @@ function renderShiftsSummary(){
    ====================================================================== */
 /* ===== پۆشاک و پێڵاو ===== */
 const UNI_ITEMS = { clothes:{icon:'👕',label:'پۆشاک'}, shoes:{icon:'👟',label:'پێڵاو'} };
+// دەسەڵاتی ئەدمینی سنوردار: بەشەکان و دەسەڵاتەکان. «تەنها پۆشاک» = هەموو بەشەکان + تەنها 👕
+function loadLimitedAdminAccess(id){
+  const u = db.exec(`SELECT uniform_only FROM limited_admins WHERE id=${id}`);
+  const uniformOnly = !!(u.length && u[0].values.length && u[0].values[0][0]);
+  const deptIds = [], deptPerms = {};
+  if(uniformOnly){
+    const d = db.exec(`SELECT id FROM departments ORDER BY id`);
+    if(d.length) d[0].values.forEach(([did])=>{
+      deptIds.push(did);
+      deptPerms[did] = {canAdd:false, canEdit:false, canDelete:false, canDaily:false, canUniform:true};
+    });
+  }else{
+    const r = db.exec(`SELECT dept_id,can_add,can_edit,can_delete,can_daily,can_uniform FROM limited_admin_depts WHERE admin_id=${id}`);
+    if(r.length) r[0].values.forEach(([did,ca,ce,cd,cdaily,cu])=>{
+      deptIds.push(did);
+      deptPerms[did] = {canAdd:!!ca, canEdit:!!ce, canDelete:!!cd, canDaily:!!cdaily, canUniform:!!cu};
+    });
+  }
+  return {deptIds, deptPerms, uniformOnly};
+}
 function hasUniformPerm(deptId){
   if(!currentUser) return false;
   if(currentUser.role==='admin') return true;
@@ -5303,18 +5320,18 @@ function openManageLimitedAdmins(){
 function renderLimitedAdminsList(){
   const wrap = document.getElementById('limitedAdminsList');
   wrap.innerHTML='';
-  const res = db.exec(`SELECT id,name FROM limited_admins ORDER BY name`);
+  const res = db.exec(`SELECT id,name,uniform_only FROM limited_admins ORDER BY name`);
   if(!res.length || !res[0].values.length){
     wrap.innerHTML = '<div class="muted">هیچ ئەدمینی سنووردارێک زیاد نەکراوە</div>';
     return;
   }
-  res[0].values.forEach(([id,name])=>{
+  res[0].values.forEach(([id,name,uOnly])=>{
     const deptCountRes = db.exec(`SELECT COUNT(*) FROM limited_admin_depts WHERE admin_id=${id}`);
     const deptCount = deptCountRes.length ? deptCountRes[0].values[0][0] : 0;
     const div=document.createElement('div');
     div.className='listItem';
     div.innerHTML = `
-      <div class="info"><b>${escapeHtml(name)}</b><span>${deptCount} بەش • دەسەڵات جیاوازە بۆ هەر بەشێک</span></div>
+      <div class="info"><b>${escapeHtml(name)}</b><span>${uOnly ? '👕 تەنها پۆشاک و پێڵاو (هەموو بەشەکان)' : (deptCount + ' بەش و دەسەڵاتەکانی دیاری کراون')}</span></div>
       <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditLimitedAdmin(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
@@ -5366,8 +5383,16 @@ function openEditLimitedAdmin(id){
   } else {
     deptsWrap.innerHTML = '<div class="muted">هیچ بەشێک زیاد نەکراوە</div>';
   }
+  const uoRes = id ? db.exec(`SELECT uniform_only FROM limited_admins WHERE id=${id}`) : [];
+  const uoOn = !!(uoRes.length && uoRes[0].values.length && uoRes[0].values[0][0]);
+  document.getElementById('laUniformOnly').checked = uoOn;
+  toggleLaUniformOnly(uoOn);
   closeModal('limitedAdminsModal');
   openModal('limitedAdminEditModal');
+}
+function toggleLaUniformOnly(on){
+  const sec = document.getElementById('laDeptsSection');
+  if(sec) sec.style.display = on ? 'none' : '';
 }
 function toggleLaDeptPerms(deptId, visible){
   const row = document.getElementById(`laDeptPerms_${deptId}`);
@@ -5381,8 +5406,9 @@ function saveLimitedAdmin(){
   const pass = document.getElementById('laPass').value.trim();
   if(!name || !pass){ showToast('ناو و وشەی نهێنی پێویستە'); return; }
 
+  const uniformOnly = !!document.getElementById('laUniformOnly').checked;
   const assignments = [];
-  document.querySelectorAll('.laDeptView:checked').forEach(chk=>{
+  if(!uniformOnly) document.querySelectorAll('.laDeptView:checked').forEach(chk=>{
     const did = parseInt(chk.value);
     const addChk = document.querySelector(`.laDeptAdd[data-dept="${did}"]`);
     const editChk = document.querySelector(`.laDeptEdit[data-dept="${did}"]`);
@@ -5398,14 +5424,14 @@ function saveLimitedAdmin(){
       canUniform: uniformChk && uniformChk.checked ? 1 : 0
     });
   });
-  if(!assignments.length){ showToast('تکایە لانیکەم یەک بەش دیاری بکە'); return; }
+  if(!assignments.length && !uniformOnly){ showToast('تکایە لانیکەم یەک بەش دیاری بکە'); return; }
 
   let adminId = editingLimitedAdminId;
   if(adminId){
-    db.run(`UPDATE limited_admins SET name=?, password=? WHERE id=?`,[name,pass,adminId]);
+    db.run(`UPDATE limited_admins SET name=?, password=?, uniform_only=? WHERE id=?`,[name,pass,uniformOnly?1:0,adminId]);
     db.run(`DELETE FROM limited_admin_depts WHERE admin_id=${adminId}`);
   } else {
-    db.run(`INSERT INTO limited_admins (name,password) VALUES (?,?)`,[name,pass]);
+    db.run(`INSERT INTO limited_admins (name,password,uniform_only) VALUES (?,?,?)`,[name,pass,uniformOnly?1:0]);
     const idRes = db.exec(`SELECT last_insert_rowid()`);
     adminId = idRes[0].values[0][0];
   }
