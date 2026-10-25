@@ -900,6 +900,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
           <div style="display:flex;gap:8px;">
             <select id="monthlyMonthPicker" class="selectBox" onchange="onMonthlyMonthChange()"></select>
             <select id="monthlyYearPicker" class="selectBox" onchange="onMonthlyYearChange()"></select>
+            <button class="btn btn-sm" id="monthlyClearMonthBtn" title="سڕینەوەی داتای ئەم مانگە" style="display:none;background:#fff;color:#c0392b;border:1.5px solid #c0392b;" onclick="openClearDeptMonth(currentDeptId, selYear, selMonth+1)">🗑️</button>
           </div>
         </div>
         <input class="miniInput stickySearch" id="monthlyReportSearch" placeholder="🔍 گەڕان بە ناو یان ئایدی..." oninput="renderMonthlyReport()">
@@ -2946,6 +2947,8 @@ function onMonthlyYearChange(){
 }
 
 function renderMonthlyReport(){
+  const mClr = document.getElementById('monthlyClearMonthBtn');
+  if(mClr) mClr.style.display = (currentDeptId && hasPerm('delete', currentDeptId)) ? '' : 'none';
   const wrap = document.getElementById('monthlyReportList');
   if(!wrap) return;
   const monthLabelEl = document.getElementById('monthlyReportMonthLabel');
@@ -3584,7 +3587,7 @@ function openDeptDetail(id){
   openModal('deptDetailModal');
 }
 let clearMonthDeptId = null;
-function openClearDeptMonth(deptId){
+function openClearDeptMonth(deptId, preY, preM){
   clearMonthDeptId = deptId || deptDetailId;
   if(!clearMonthDeptId) return;
   const res = db.exec(`SELECT year,month,COUNT(*) FROM employee_attendance WHERE COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${clearMonthDeptId} GROUP BY year,month ORDER BY year DESC,month DESC`);
@@ -3598,6 +3601,7 @@ function openClearDeptMonth(deptId){
   }else{
     sel.disabled = false; if(btn) btn.disabled = false;
     sel.innerHTML = res[0].values.map(([y,m,c])=>`<option value="${y}-${m}">${KURDISH_MONTHS[m-1]} ${y} (${c} تۆمار)</option>`).join('');
+    if(preY && preM && Array.from(sel.options).some(o=>o.value===`${preY}-${preM}`)) sel.value = `${preY}-${preM}`;
   }
   pinClear('clearMonthPassBoxes');
   document.getElementById('clearMonthError').textContent = '';
