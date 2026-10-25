@@ -3008,7 +3008,7 @@ function onMonthlyYearChange(){
 
 function renderMonthlyReport(){
   const mClr = document.getElementById('monthlyClearMonthBtn');
-  if(mClr) mClr.style.display = (currentDeptId && currentUser && currentUser.role==='admin') ? '' : 'none';
+  if(mClr) mClr.style.display = canClearMonth(currentDeptId) ? '' : 'none';
   const wrap = document.getElementById('monthlyReportList');
   if(!wrap) return;
   const monthLabelEl = document.getElementById('monthlyReportMonthLabel');
@@ -3548,6 +3548,18 @@ ${body}
   const doPrint = ()=>{ try{ win.focus(); win.print(); }catch(e){} };
   win.onload = doPrint; setTimeout(doPrint, 350);
 }
+// سڕینەوەی داتای مانگانە تەنها بۆ بەشی استیقالەیە (کوردی یان ئینگلیزی: resigned، بێ جیاوازی پیتی گەورە و بچووک)
+const CLEAR_MONTH_DEPT_NAMES = [...RESIGNATION_DEPT_NAMES.map(n=>n.toLowerCase()), 'resigned', 'resign', 'resignation'];
+function isClearMonthDept(deptId){
+  if(!deptId) return false;
+  const r = db.exec(`SELECT name FROM departments WHERE id=${deptId}`);
+  if(!r.length || !r[0].values.length) return false;
+  const n = String(r[0].values[0][0]||'').trim().toLowerCase();
+  return CLEAR_MONTH_DEPT_NAMES.includes(n);
+}
+function canClearMonth(deptId){
+  return !!(currentUser && currentUser.role==='admin' && isClearMonthDept(deptId));
+}
 function isResignationDeptId(deptId){
   const r = db.exec(`SELECT name FROM departments WHERE id=${deptId}`);
   return !!(r.length && r[0].values.length && RESIGNATION_DEPT_NAMES.includes(String(r[0].values[0][0]||'').trim()));
@@ -3571,7 +3583,7 @@ function renderEmployeesList(){
   if(!currentDeptId){ wrap.innerHTML='<div class="muted">-</div>'; return; }
   const term = (document.getElementById('employeesListSearch')?.value || '').trim();
   const clrBtn = document.getElementById('employeesClearMonthBtn');
-  if(clrBtn) clrBtn.style.display = (currentUser && currentUser.role==='admin') ? '' : 'none';
+  if(clrBtn) clrBtn.style.display = canClearMonth(currentDeptId) ? '' : 'none';
   const resFirst = resignFirstOrderSql(currentDeptId);
   const resMap = todayResignMap(currentDeptId);
   const uniMap = uniformLastMap(currentDeptId);
@@ -3961,7 +3973,7 @@ function openDeptDetail(id){
   const addBtnsWrap = document.getElementById('deptDetailAddBtns');
   // بەشی استیقالە: لەبری زیادکردن بە JSON، دوگمەی سڕینەوەی داتای مانگانە پیشان دەدرێت
   const isResDept = RESIGNATION_DEPT_NAMES.includes((deptName||'').trim());
-  const canClear = !!(currentUser && currentUser.role==='admin');
+  const canClear = canClearMonth(id);
   const jsonB = document.getElementById('deptDetailJsonBtn');
   const clrB = document.getElementById('deptDetailClearMonthBtn');
   const addB = document.getElementById('deptDetailAddEmpBtn');
@@ -3975,8 +3987,8 @@ function openDeptDetail(id){
 }
 let clearMonthDeptId = null;
 function openClearDeptMonth(deptId, preY, preM){
-  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین دەتوانێت داتای مانگانە بسڕێتەوە'); return; }
   clearMonthDeptId = deptId || deptDetailId;
+  if(!canClearMonth(clearMonthDeptId)){ showToast('🔒 ئەم کارە بۆ ئەم بەشە ڕێگەپێدراو نییە'); return; }
   if(!clearMonthDeptId) return;
   const res = db.exec(`SELECT year,month,COUNT(*) FROM employee_attendance WHERE COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${clearMonthDeptId} GROUP BY year,month ORDER BY year DESC,month DESC`);
   const sel = document.getElementById('clearMonthSel');
@@ -4002,7 +4014,7 @@ function confirmClearDeptMonth(){
   const errEl = document.getElementById('clearMonthError');
   const v = document.getElementById('clearMonthSel').value;
   if(!v){ errEl.textContent = 'هیچ مانگێک هەڵنەبژێردراوە'; return; }
-  if(!(currentUser && currentUser.role==='admin')){ errEl.textContent = 'تەنها سوپەر ئەدمین'; return; }
+  if(!canClearMonth(clearMonthDeptId)){ errEl.textContent = 'ئەم کارە بۆ ئەم بەشە ڕێگەپێدراو نییە'; return; }
   const pass = document.getElementById('clearMonthPass').value;
   if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
   const superAdminPass = getSetting('admin_password');
