@@ -3008,7 +3008,7 @@ function onMonthlyYearChange(){
 
 function renderMonthlyReport(){
   const mClr = document.getElementById('monthlyClearMonthBtn');
-  if(mClr) mClr.style.display = (currentDeptId && hasPerm('delete', currentDeptId)) ? '' : 'none';
+  if(mClr) mClr.style.display = (currentDeptId && currentUser && currentUser.role==='admin') ? '' : 'none';
   const wrap = document.getElementById('monthlyReportList');
   if(!wrap) return;
   const monthLabelEl = document.getElementById('monthlyReportMonthLabel');
@@ -3571,7 +3571,7 @@ function renderEmployeesList(){
   if(!currentDeptId){ wrap.innerHTML='<div class="muted">-</div>'; return; }
   const term = (document.getElementById('employeesListSearch')?.value || '').trim();
   const clrBtn = document.getElementById('employeesClearMonthBtn');
-  if(clrBtn) clrBtn.style.display = hasPerm('delete', currentDeptId) ? '' : 'none';
+  if(clrBtn) clrBtn.style.display = (currentUser && currentUser.role==='admin') ? '' : 'none';
   const resFirst = resignFirstOrderSql(currentDeptId);
   const resMap = todayResignMap(currentDeptId);
   const uniMap = uniformLastMap(currentDeptId);
@@ -3961,7 +3961,7 @@ function openDeptDetail(id){
   const addBtnsWrap = document.getElementById('deptDetailAddBtns');
   // بەشی استیقالە: لەبری زیادکردن بە JSON، دوگمەی سڕینەوەی داتای مانگانە پیشان دەدرێت
   const isResDept = RESIGNATION_DEPT_NAMES.includes((deptName||'').trim());
-  const canClear = hasPerm('delete', id);
+  const canClear = !!(currentUser && currentUser.role==='admin');
   const jsonB = document.getElementById('deptDetailJsonBtn');
   const clrB = document.getElementById('deptDetailClearMonthBtn');
   const addB = document.getElementById('deptDetailAddEmpBtn');
@@ -3975,6 +3975,7 @@ function openDeptDetail(id){
 }
 let clearMonthDeptId = null;
 function openClearDeptMonth(deptId, preY, preM){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین دەتوانێت داتای مانگانە بسڕێتەوە'); return; }
   clearMonthDeptId = deptId || deptDetailId;
   if(!clearMonthDeptId) return;
   const res = db.exec(`SELECT year,month,COUNT(*) FROM employee_attendance WHERE COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${clearMonthDeptId} GROUP BY year,month ORDER BY year DESC,month DESC`);
@@ -4001,7 +4002,7 @@ function confirmClearDeptMonth(){
   const errEl = document.getElementById('clearMonthError');
   const v = document.getElementById('clearMonthSel').value;
   if(!v){ errEl.textContent = 'هیچ مانگێک هەڵنەبژێردراوە'; return; }
-  if(!hasPerm('delete', clearMonthDeptId)){ errEl.textContent = 'دەسەڵاتی سڕینەوەت نییە'; return; }
+  if(!(currentUser && currentUser.role==='admin')){ errEl.textContent = 'تەنها سوپەر ئەدمین'; return; }
   const pass = document.getElementById('clearMonthPass').value;
   if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
   const superAdminPass = getSetting('admin_password');
