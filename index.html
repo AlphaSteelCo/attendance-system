@@ -1066,6 +1066,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div class="muted" style="font-size:12px;margin-bottom:8px;">
       لیستێک (Array) لە JSON بنووسە، هەر کارمەندێک بە خانەکانی: name (ناو، پێویستە)، code (ئایدی)، shift (ڕۆژ یان شەو)، hours (کاتی کارکردن).
     </div>
+    <label class="muted" style="font-size:12px;">ڕۆژی دەستبەکاربوون (بۆ هەموو کارمەندەکان، ئەگەر لە JSON نەنووسرابێت)</label>
+    <input type="date" class="miniInput" id="bulkStartDate" style="margin:6px 0 8px;width:100%;">
+    <div class="muted" style="font-size:11.5px;margin-bottom:8px;">دەتوانیت بۆ هەر کارمەندێک جیا بنووسیت: <span style="direction:ltr;display:inline-block;">"start_date":"2026-10-12"</span></div>
     <button class="btn btn-ghost btn-sm" style="margin-bottom:8px;" onclick="fillBulkExample()">📄 پڕکردنەوە بە نموونە</button>
     <textarea id="bulkJsonInput" class="miniInput" style="height:180px;font-family:monospace;font-size:12.5px;direction:ltr;text-align:left;" placeholder="[
   {&quot;name&quot;:&quot;ئاراس محەمەد&quot;,&quot;code&quot;:&quot;1001&quot;,&quot;shift&quot;:&quot;ڕۆژ&quot;,&quot;hours&quot;:&quot;07:00-19:00&quot;},
@@ -1185,6 +1188,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','19:00-07:00 N')">19:00 - 07:00 N</button>
     </div>
     <input class="miniInput" id="newEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17، یان خۆت بینووسە" style="margin-top:2px;">
+    <label class="muted" style="font-size:12px;">ڕۆژی دەستبەکاربوون</label>
+    <input type="date" class="miniInput" id="newEmpStartDate" style="margin:6px 0 10px;width:100%;">
     <button class="btn btn-primary" style="width:100%;" onclick="addEmployeeConfirm()">💾 زیادکردن</button>
   </div>
 </div>
@@ -3192,6 +3197,27 @@ function renderEmployeesList(){
   });
 }
 
+// بەرواری ئەمڕۆی بەش بە شێوەی YYYY-MM-DD (بۆ خانەی ڕۆژی دەستبەکاربوون)
+function deptTodayISO(deptId){
+  let d;
+  try{ d = getEffectiveEditDate(deptId); }catch(e){ d = new Date(); }
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function prepStartDateField(inputId, deptId){
+  const el = document.getElementById(inputId);
+  if(!el) return;
+  const t = deptTodayISO(deptId);
+  el.max = t;
+  el.value = t;
+}
+// بەرواری نووسراو (YYYY-MM-DD) بۆ YYYYMMDD؛ ئەگەر بەتاڵ/هەڵە/داهاتوو بێت = ئەمڕۆ
+function startDateToInt(v, deptId){
+  const today = deptTodayInt(deptId);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((v||'').toString().trim());
+  if(!m) return today;
+  const n = parseInt(m[1]+m[2]+m[3],10);
+  return n > today ? today : n;
+}
 let addEmployeeTargetDeptId = null;
 function openAddEmployeeModal(){
   if(!currentDeptId){ showToast('سەرەتا بەشێک دیاری بکە'); return; }
@@ -3201,6 +3227,7 @@ function openAddEmployeeModal(){
   document.getElementById('newEmpCode').value='';
   document.getElementById('newEmpShiftType').value='ڕۆژ';
   document.getElementById('newEmpHours').value='';
+  prepStartDateField('newEmpStartDate', currentDeptId);
   openModal('addEmployeeModal');
 }
 function addEmployeeConfirm(){
@@ -3211,7 +3238,7 @@ function addEmployeeConfirm(){
   const shiftType = document.getElementById('newEmpShiftType').value;
   const hours = document.getElementById('newEmpHours').value.trim();
   if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
-  db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours,deptTodayInt(targetDeptId)]);
+  db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours,startDateToInt((document.getElementById('newEmpStartDate')||{}).value, targetDeptId)]);
   persistLocal();
   bumpDeptChange(targetDeptId, 'New', 'کارمەند', name);
   closeModal('addEmployeeModal');
@@ -3611,6 +3638,7 @@ function openAddEmployeeForDetail(){
   document.getElementById('newEmpCode').value='';
   document.getElementById('newEmpShiftType').value='ڕۆژ';
   document.getElementById('newEmpHours').value='';
+  prepStartDateField('newEmpStartDate', deptDetailId);
   openModal('addEmployeeModal');
 }
 
@@ -3621,11 +3649,12 @@ function openBulkAddModal(){
   if(!deptDetailId) return;
   if(!hasPerm('add', deptDetailId)){ showToast('🔒 دەسەڵاتی زیادکردنی کارمەندت لەم بەشەدا نییە'); return; }
   document.getElementById('bulkJsonInput').value='';
+  prepStartDateField('bulkStartDate', deptDetailId);
   openModal('bulkAddEmployeesModal');
 }
 function fillBulkExample(){
   document.getElementById('bulkJsonInput').value = JSON.stringify([
-    {name:'ئاراس محەمەد', code:'1001', shift:'ڕۆژ', hours:'07:00-19:00'},
+    {name:'ئاراس محەمەد', code:'1001', shift:'ڕۆژ', hours:'07:00-19:00', start_date:'2026-10-12'},
     {name:'سارا ئەحمەد', code:'1002', shift:'شەو', hours:'19:00-07:00'}
   ], null, 2);
 }
@@ -3644,6 +3673,7 @@ function processBulkAddEmployees(){
     showToast('❌ پێویستە بە شێوەی لیست [ ] بێت');
     return;
   }
+  const bulkDefault = (document.getElementById('bulkStartDate')||{}).value;
   let added=0, skipped=0;
   data.forEach(item=>{
     if(!item || typeof item!=='object') { skipped++; return; }
@@ -3653,7 +3683,7 @@ function processBulkAddEmployees(){
     let shiftType = (item.shift || item.shift_type || item['شەفت'] || 'ڕۆژ').toString().trim();
     if(shiftType!=='ڕۆژ' && shiftType!=='شەو') shiftType='ڕۆژ';
     const hours = (item.hours || item['کات'] || '').toString().trim();
-    db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[deptDetailId,name,code,shiftType,hours,deptTodayInt(deptDetailId)]);
+    db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[deptDetailId,name,code,shiftType,hours,startDateToInt(item.start_date || item['ڕۆژی دەستپێک'] || bulkDefault, deptDetailId)]);
     added++;
   });
   persistLocal();
