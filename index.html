@@ -698,6 +698,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dupBadge{font-size:10.5px;padding:2px 7px;border-radius:999px;background:#eef0ea;color:var(--muted);white-space:nowrap;}
   .dupBadge.same{background:#fdecea;color:var(--bad);font-weight:700;}
   .dupTitle{font-size:13px;font-weight:800;margin:10px 0 6px;}
+  .resignView .tabsRow, .resignView #calendarCard, .resignView #shiftsCard, .resignView #monthlyView, .resignView #dailyReminderBanner{display:none !important;}
   .uniformOnly .tabsRow, .uniformOnly #calendarCard, .uniformOnly #shiftsCard, .uniformOnly #monthlyView, .uniformOnly #dailyReminderBanner, .uniformOnly #empAbsLinkBtn{display:none !important;}
   .uniItemRow{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   .uniItemRow label{flex:0 0 42%;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;cursor:pointer;}
@@ -2946,6 +2947,14 @@ function applyResignationDeptTabRule(){
     const res = db.exec(`SELECT 1 FROM departments WHERE id=${currentDeptId} AND name IN (${nameList})`);
     isResignation = !!(res.length && res[0].values.length);
   }
+  // سوپەر ئەدمین و ئەدمینی سنوردار: بەشی استیقالە بە دیزاینی سادە (تەنها لیستی کارمەندان)
+  const cleanView = !!(currentDeptId && isClearMonthDept(currentDeptId) && currentUser && (currentUser.role==='admin' || currentUser.role==='limited_admin'));
+  document.documentElement.classList.toggle('resignView', cleanView);
+  if(cleanView){
+    dailyTabBtn.style.display = '';
+    setMainTab('daily');
+    return;
+  }
   dailyTabBtn.style.display = isResignation ? 'none' : '';
   if(isResignation){
     setMainTab('monthly');
@@ -3567,14 +3576,23 @@ function isResignationDeptId(deptId){
 // ئەو کارمەندانەی ئەمڕۆ (لە هەموو بەشەکانەوە) گوازراونەتەوە بۆ استیقالە: id => ناوی بەشی پێشوو
 function todayResignMap(deptId){
   const m = new Map();
-  if(!deptId || !isResignationDeptId(deptId)) return m;
+  if(!deptId || !isClearMonthDept(deptId)) return m;
   const res = db.exec(`SELECT e.id, COALESCE(d.name,'') FROM employees e LEFT JOIN departments d ON d.id=e.prev_dept_id WHERE e.dept_id=${deptId} AND e.dept_since=${deptTodayInt(deptId)}`);
   if(res.length) res[0].values.forEach(([id,pn])=>m.set(id,pn));
   return m;
 }
 // لە بەشی استیقالە: ئەوانەی ئەمڕۆ گوازراونەتەوە لە سەرەوە بن
 function resignFirstOrderSql(deptId){
-  return isResignationDeptId(deptId) ? `(dept_since = ${deptTodayInt(deptId)}) DESC,` : '';
+  // لە بەشی استیقالە: بەپێی ڕۆژی استیقالە (نوێترین سەرەتا)، ئەوانەی بەروارەکەیان نییە لە کۆتایی
+  return isClearMonthDept(deptId) ? `dept_since DESC,` : '';
+}
+// ڕۆژی استیقالەی هەر کارمەندێکی بەشی استیقالە: Map(empId => YYYYMMDD)
+function resDateMap(deptId){
+  const m = new Map();
+  if(!deptId || !isClearMonthDept(deptId)) return m;
+  const r = db.exec(`SELECT id,dept_since FROM employees WHERE dept_id=${deptId} AND dept_since IS NOT NULL`);
+  if(r.length) r[0].values.forEach(([id,ds])=>m.set(id,ds));
+  return m;
 }
 function renderEmployeesList(){
   const wrap = document.getElementById('employeesList');
@@ -3586,6 +3604,7 @@ function renderEmployeesList(){
   if(clrBtn) clrBtn.style.display = canClearMonth(currentDeptId) ? '' : 'none';
   const resFirst = resignFirstOrderSql(currentDeptId);
   const resMap = todayResignMap(currentDeptId);
+  const resDate = resDateMap(currentDeptId);
   const uniMap = uniformLastMap(currentDeptId);
   const shiftFilter = document.getElementById('employeesShiftFilter')?.value || 'all';
   const shiftFilterSql = (shiftFilter && shiftFilter!=='all') ? 'AND shift_type = ?' : '';
@@ -3614,7 +3633,7 @@ function renderEmployeesList(){
     div.className='listItem';
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
-    const extra = [fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const extra = [fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
@@ -4041,6 +4060,7 @@ function renderDeptDetailEmployees(){
   const term = (document.getElementById('deptDetailSearch').value || '').trim();
   const resFirst = resignFirstOrderSql(deptDetailId);
   const resMap = todayResignMap(deptDetailId);
+  const resDate = resDateMap(deptDetailId);
   const uniMap = uniformLastMap(deptDetailId);
   let res;
   if(term){
@@ -4058,7 +4078,7 @@ function renderDeptDetailEmployees(){
   res[0].values.forEach(([id,name,code,shiftType,hours])=>{
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
-    const extra = [fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const extra = [fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     const div=document.createElement('div');
     div.className='listItem';
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
