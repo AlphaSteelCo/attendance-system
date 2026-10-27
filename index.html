@@ -1203,7 +1203,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button type="button" class="btn btn-outline btn-sm" onclick="fillHoursField('newEmpHours','19:00-07:00 N')">19:00 - 07:00 N</button>
     </div>
     <input class="miniInput" id="newEmpHours" placeholder="بۆ نموونە 7-19 یان 7-17، یان خۆت بینووسە" style="margin-top:2px;">
-    <label class="muted" style="font-size:12px;">ڕۆژی دەستبەکاربوون</label>
+    <label class="muted" style="font-size:12px;">ڕۆژی دەستبەکاربوون (دەتوانیت ڕۆژی داهاتووش دابنێیت)</label>
     <input type="date" class="miniInput" id="newEmpStartDate" style="margin:6px 0 10px;width:100%;">
     <button class="btn btn-primary" style="width:100%;" onclick="addEmployeeConfirm()">💾 زیادکردن</button>
   </div>
@@ -3587,6 +3587,14 @@ function resignFirstOrderSql(deptId){
   return isClearMonthDept(deptId) ? `dept_since DESC,` : '';
 }
 // ڕۆژی استیقالەی هەر کارمەندێکی بەشی استیقالە: Map(empId => YYYYMMDD)
+// ئەو کارمەندانەی هێشتا دەست پێناکەن (بەرواری دەستبەکاربوونیان داهاتووە): Map(empId => YYYYMMDD)
+function futureStartMap(deptId){
+  const m = new Map();
+  if(!deptId) return m;
+  const r = db.exec(`SELECT id,dept_since FROM employees WHERE dept_id=${deptId} AND dept_since IS NOT NULL AND dept_since > ${deptTodayInt(deptId)}`);
+  if(r.length) r[0].values.forEach(([id,ds])=>m.set(id,ds));
+  return m;
+}
 function resDateMap(deptId){
   const m = new Map();
   if(!deptId || !isClearMonthDept(deptId)) return m;
@@ -3605,6 +3613,7 @@ function renderEmployeesList(){
   const resFirst = resignFirstOrderSql(currentDeptId);
   const resMap = todayResignMap(currentDeptId);
   const resDate = resDateMap(currentDeptId);
+  const futMap = futureStartMap(currentDeptId);
   const uniMap = uniformLastMap(currentDeptId);
   const shiftFilter = document.getElementById('employeesShiftFilter')?.value || 'all';
   const shiftFilterSql = (shiftFilter && shiftFilter!=='all') ? 'AND shift_type = ?' : '';
@@ -3633,7 +3642,7 @@ function renderEmployeesList(){
     div.className='listItem';
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
-    const extra = [fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
@@ -3652,7 +3661,7 @@ function prepStartDateField(inputId, deptId){
   const el = document.getElementById(inputId);
   if(!el) return;
   const t = deptTodayISO(deptId);
-  el.max = t;
+  el.removeAttribute('max'); // ڕێگە بە بەرواری داهاتووش دەدرێت
   el.value = t;
 }
 // بەرواری نووسراو (YYYY-MM-DD) بۆ YYYYMMDD؛ ئەگەر بەتاڵ/هەڵە/داهاتوو بێت = ئەمڕۆ
@@ -3661,7 +3670,7 @@ function startDateToInt(v, deptId){
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((v||'').toString().trim());
   if(!m) return today;
   const n = parseInt(m[1]+m[2]+m[3],10);
-  return n > today ? today : n;
+  return n;
 }
 let addEmployeeTargetDeptId = null;
 function openAddEmployeeModal(){
@@ -4061,6 +4070,7 @@ function renderDeptDetailEmployees(){
   const resFirst = resignFirstOrderSql(deptDetailId);
   const resMap = todayResignMap(deptDetailId);
   const resDate = resDateMap(deptDetailId);
+  const futMap = futureStartMap(deptDetailId);
   const uniMap = uniformLastMap(deptDetailId);
   let res;
   if(term){
@@ -4078,7 +4088,7 @@ function renderDeptDetailEmployees(){
   res[0].values.forEach(([id,name,code,shiftType,hours])=>{
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
-    const extra = [fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     const div=document.createElement('div');
     div.className='listItem';
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
