@@ -538,6 +538,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .bulkChk.disabled{opacity:.5;cursor:not-allowed;}
   .bulkChk.disabled input{cursor:not-allowed;}
   .empDayRow.needsSelection{background:#eaf3ff;border-color:#90c2f7;}
+  .empDayRow.newArrival,.empDayRow.newArrival.needsSelection{background:#fff3e0;border-color:#f0c27b;}
+  .miniBadge.arrivalBadge{background:#ffe2b8;color:#a25f08;}
   .dayLockNote{background:#fff6e5;border:1.5px solid #f0c14b;color:#8a6100;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
   .lateTimeInline{display:none;align-items:center;gap:4px;flex-shrink:0;}
   .lateTimeInline.show{display:flex;}
@@ -560,6 +562,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .fcTop .fcDate{font-size:13px;font-weight:800;}
   .fcTop .fcCount{font-size:12px;color:var(--muted);font-weight:700;}
   .fcBody{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px 10px;}
+  .fcNameCard.newArrival{background:#fff3e0;border-color:#f0c27b;}
   .fcNameCard{text-align:center;background:var(--bg);border:1.5px solid var(--line);border-radius:16px;padding:16px 12px;margin-bottom:14px;}
   .fcName{font-size:22px;font-weight:800;margin-bottom:8px;word-break:break-word;}
   .fcBadges{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
@@ -3732,6 +3735,14 @@ function startDateToInt(v, deptId){
   const n = parseInt(m[1]+m[2]+m[3],10);
   return n;
 }
+// کارمەندانی تازە زیادکراو/گوازراوە لە ڕۆژێکی دیاریکراودا: id => ناوی بەشی پێشوو ('' = تازە زیادکراوە)
+function arrivalMapForDay(deptId, dayInt){
+  const m = new Map();
+  if(!deptId) return m;
+  const res = db.exec(`SELECT e.id, CASE WHEN e.prev_dept_id IS NULL THEN '' ELSE COALESCE(d.name,'') END FROM employees e LEFT JOIN departments d ON d.id=e.prev_dept_id WHERE e.dept_id=${deptId} AND e.dept_since=${dayInt}`);
+  if(res.length) res[0].values.forEach(([id,pn])=>m.set(id,pn));
+  return m;
+}
 let addEmployeeTargetDeptId = null;
 function openAddEmployeeModal(){
   if(!currentDeptId){ showToast('سەرەتا بەشێک دیاری بکە'); return; }
@@ -4529,6 +4540,7 @@ function openDayModal(day){
     delDayBtn.style.display = (dayIsEditable && hasRecords && currentUser && currentUser.role==='admin') ? '' : 'none';
   }
 
+  const arrivalMap = arrivalMapForDay(currentDeptId, dayInt);
   empRes[0].values.forEach(([eid,name,code,shiftType,hours,deptSince,sinceBlank])=>{
     // کارمەندی گوازراوە: لە ڕۆژی گواستنەوەدا بە خۆکاری ئامادە نایژمێردرێت (کارمەندی تازە ئامادەیە)
     dayAttendanceState[eid] = statusMap[eid] || ((deptSince===dayInt && sinceBlank===1) ? null : 'present');
@@ -4546,6 +4558,9 @@ function openDayModal(day){
     const codeBadge = code ? `<span class="miniBadge">${escapeHtml(code)}</span>` : '';
     const shiftBadge = shiftType ? `<span class="miniBadge">${shiftIcon} ${escapeHtml(shiftType)}</span>` : '';
     const hoursBadge = hours ? `<span class="miniBadge">🕐 ${escapeHtml(hours)}</span>` : '';
+    const isArrival = arrivalMap.has(eid);
+    if(isArrival) row.classList.add('newArrival');
+    const arrivalBadge = isArrival ? `<span class="miniBadge arrivalBadge">${arrivalMap.get(eid) ? ('📥 لە '+escapeHtml(arrivalMap.get(eid))) : '🆕 تازە زیاد کرا'}</span>` : '';
     const hasNote = !!(dayNoteText[eid] && dayNoteText[eid].trim());
     row.innerHTML = `
       <div class="empInfoInline tappable" onclick="openEmpFocus(${eid})" title="کرتە بکە بۆ تۆمارکردنی بەتەواوی">
@@ -4553,6 +4568,7 @@ function openDayModal(day){
         ${codeBadge}
         ${shiftBadge}
         ${hoursBadge}
+        ${arrivalBadge}
         <span class="empOpenHint">‹</span>
       </div>
       <div class="empActionsRow">
@@ -4625,6 +4641,7 @@ function renderEmpFocus(){
   if(!row) return;
   const nameEl = row.querySelector('.empNameInline');
   document.getElementById('fcName').textContent = nameEl ? nameEl.textContent : '';
+  { const nc = document.querySelector('#empFocusModal .fcNameCard'); if(nc) nc.classList.toggle('newArrival', row.classList.contains('newArrival')); }
   document.getElementById('fcBadges').innerHTML = Array.from(row.querySelectorAll('.miniBadge')).map(b=>b.outerHTML).join('');
   const list = fcVisibleEids();
   const idx = list.indexOf(fcEid);
