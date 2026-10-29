@@ -530,8 +530,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dayHeadRow{gap:10px;}
   .dayHeadRow .dayDeptName{flex:1;min-width:0;font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .dayDeptName{font-size:14px;font-weight:800;}
-  .dayNewBadge{display:none;align-items:center;gap:4px;flex-shrink:0;background:#fff3e0;border:1.5px solid #f0c27b;color:#a25f08;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;}
-  .dayNewBadge.show{display:inline-flex;}
+  .dayNewBadge{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;background:#fff3e0;border:1.5px solid #f0c27b;color:#a25f08;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;}
+  .dayNewBadge.zero{opacity:.45;background:#f2f3f0;border-color:var(--line);color:var(--muted);}
   .dayNewBadge:active{background:#ffe2b8;}
   .empDayRow.flashNew{animation:flashNew 1.2s ease-out;}
   @keyframes flashNew{0%,40%{box-shadow:0 0 0 3px #f0c27b;}100%{box-shadow:0 0 0 0 transparent;}}
@@ -4459,7 +4459,7 @@ function openDayModal(day){
     `${day} ${KURDISH_MONTHS[selMonth]} ${selYear}`;
   const listWrap = document.getElementById('dayEmployeesList');
   listWrap.innerHTML='';
-  { const nb = document.getElementById('dayNewBadge'); if(nb) nb.classList.remove('show'); }
+  { const nb = document.getElementById('dayNewBadge'); if(nb){ nb.classList.add('zero'); document.getElementById('dayNewCount').textContent='0'; } }
   dayAttendanceState = {};
   dayLateTimes = {};
   dayNoteText = {};
@@ -4616,7 +4616,7 @@ function openDayModal(day){
     if(nb){
       const n = listWrap.querySelectorAll('.empDayRow.newArrival').length;
       document.getElementById('dayNewCount').textContent = n;
-      nb.classList.toggle('show', n>0);
+      nb.classList.toggle('zero', n===0);
     } }
   updateDayLiveSummary();
   openModal('dayModal');
@@ -4624,7 +4624,7 @@ function openDayModal(day){
 let _newIdx = 0;
 function goToNewEmployees(){
   const rows = Array.from(document.querySelectorAll('#dayEmployeesList .empDayRow.newArrival')).filter(r=>r.style.display!=='none');
-  if(!rows.length) return;
+  if(!rows.length){ showToast('هیچ کارمەندی تازە نییە لەم ڕۆژەدا'); return; }
   const r = rows[_newIdx % rows.length]; _newIdx++;
   try{ r.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){ r.scrollIntoView(); }
   r.classList.remove('flashNew'); void r.offsetWidth; r.classList.add('flashNew');
