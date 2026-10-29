@@ -2422,6 +2422,7 @@ function actionTagsLabel(tags){
   return ' (' + tags.join('-') + ')';
 }
 function deptStalenessHtml(deptId){
+  if(currentUser && currentUser.uniformOnly) return ''; // تەنها پۆشاک و پێڵاو: زانیاری ڕۆژانە پیشان نادرێت
   const last = getDeptLastAttendanceDate(deptId);
   const today = new Date(); today.setHours(0,0,0,0);
   const todayPills = actionTagsPills(getTodayActionTags(deptId));
@@ -2436,6 +2437,7 @@ function deptStalenessHtml(deptId){
 }
 // بانەری ناردنی بیرخستنەوە بە واتساپ بۆ سەرپەرشتیاری بەشەکە، تەنها کاتێک ژمارەی تەلەفۆنی زیادکراوە
 function waReminderBtnHtml(deptId){
+  if(currentUser && currentUser.uniformOnly) return ''; // ئەدمینی «تەنها پۆشاک و پێڵاو» بیرخستنەوە نانێرێت
   const res = db.exec(`SELECT phone FROM departments WHERE id=${deptId}`);
   const phone = res.length && res[0].values.length ? String(res[0].values[0][0]||'').trim() : '';
   if(!phone) return '';
@@ -4965,6 +4967,7 @@ function normalizePhoneForWhatsApp(raw){
 /* ناردنی نامەی بیرخستنەوە بۆ سەرپەرشتیاری بەشێکی دیاریکراو لە ڕێگەی واتساپ،
    داوا لێی دەکات سیستەمی ئامادەبوون بۆ ئەمڕۆ تازە بکاتەوە */
 function sendDeptReminderWhatsApp(deptId){
+  if(currentUser && currentUser.uniformOnly){ showToast('🔒 ئەم دەسەڵاتەت نییە'); return; }
   const res = db.exec(`SELECT name, phone FROM departments WHERE id=${deptId}`);
   if(!res.length || !res[0].values.length) return;
   const [deptName, phoneRaw] = res[0].values[0];
