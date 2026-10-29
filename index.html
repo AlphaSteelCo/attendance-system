@@ -2689,8 +2689,8 @@ function registerLoginFailure(){
   const st = getLoginLockState();
   st.failCount = (st.failCount||0) + 1;
   let lockSeconds = 0;
-  if(st.failCount>=4 && (st.failCount-4)%3===0){
-    const occurrence = Math.floor((st.failCount-4)/3)+1;
+  if(st.failCount>=3 && (st.failCount-3)%3===0){
+    const occurrence = Math.floor((st.failCount-3)/3)+1;
     lockSeconds = occurrence===1 ? 30 : (occurrence===2 ? 60 : 1800);
   }
   if(lockSeconds>0) st.lockUntil = Date.now() + lockSeconds*1000;
@@ -2730,6 +2730,40 @@ setInterval(()=>{
   }
 },1000);
 
+// ڕێگری هەوڵی وشەی نهێنی لە پەنجەرەکانی تر (هەمان ژمێرەری چوونەژوورەوە)
+let pwCountdownTimer = null;
+function pwLockMessage(sec){
+  return '⛔ زۆر هەوڵی هەڵە دراوە، تکایە ' + formatLockDuration(sec) + ' چاوەڕێ بکە';
+}
+function pwStartCountdown(errEl){
+  if(pwCountdownTimer){ clearInterval(pwCountdownTimer); pwCountdownTimer = null; }
+  pwCountdownTimer = setInterval(()=>{
+    const r = getLoginLockRemainingSeconds();
+    if(r>0){ errEl.textContent = pwLockMessage(r); }
+    else{ errEl.textContent = ''; clearInterval(pwCountdownTimer); pwCountdownTimer = null; }
+  }, 1000);
+}
+// true = ئێستا بلۆکە و نابێت پشکنین بکرێت
+function pwGuard(errEl){
+  const r = getLoginLockRemainingSeconds();
+  if(r>0){
+    if(errEl){ errEl.textContent = pwLockMessage(r); pwStartCountdown(errEl); }
+    return true;
+  }
+  return false;
+}
+// وشەی نهێنی هەڵە: هەژماری هەوڵ و (ئەگەر پێویست بوو) بلۆککردن
+function pwFail(errEl, hostId){
+  registerLoginFailure();
+  if(hostId) pinFail(hostId);
+  const r = getLoginLockRemainingSeconds();
+  if(r>0){ errEl.textContent = pwLockMessage(r); pwStartCountdown(errEl); }
+  else{
+    const st = getLoginLockState();
+    const left = 3 - ((st.failCount||0) % 3);
+    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌ (' + left + ' هەوڵ ماوە)';
+  }
+}
 async function doLogin(){
   const errEl = document.getElementById('loginError');
   const _loginHost = document.getElementById('loginPinBoxes');
@@ -3898,14 +3932,15 @@ function confirmDeleteEmployee(){
   const errEl = document.getElementById('deleteEmpError');
   if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
   const superAdminPass = getSetting('admin_password');
+  if(pwGuard(errEl)) return;
   const isValid = (pendingDeleteDeptPass!==null && pass === pendingDeleteDeptPass)
                 || (superAdminPass!=null && pass === superAdminPass);
   if(!isValid){
-    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
-    pinFail('deleteEmpPassBoxes');
+    pwFail(errEl,'deleteEmpPassBoxes');
     return;
   }
   errEl.textContent = '';
+  resetLoginLockState();
   const empId = editingEmpId, empDeptId = editingEmpDeptId;
   pinSuccess('deleteEmpPassBoxes', ()=>{
     const delNameRes = db.exec(`SELECT name FROM employees WHERE id=${empId}`);
@@ -4071,13 +4106,14 @@ function confirmClearDeptMonth(){
   if(!canClearMonth(clearMonthDeptId)){ errEl.textContent = 'ئەم کارە بۆ ئەم بەشە ڕێگەپێدراو نییە'; return; }
   const pass = document.getElementById('clearMonthPass').value;
   if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
+  if(pwGuard(errEl)) return;
   const superAdminPass = getSetting('admin_password');
   if(superAdminPass==null || pass !== superAdminPass){
-    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
-    pinFail('clearMonthPassBoxes');
+    pwFail(errEl,'clearMonthPassBoxes');
     return;
   }
   errEl.textContent = '';
+  resetLoginLockState();
   const [y,m] = v.split('-').map(Number);
   pinSuccess('clearMonthPassBoxes', ()=>{
     db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=?`,[y,m,clearMonthDeptId]);
@@ -4903,13 +4939,14 @@ function confirmDeleteDay(){
   const errEl = document.getElementById('deleteDayError');
   const pass = document.getElementById('deleteDayPass').value;
   if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
+  if(pwGuard(errEl)) return;
   const superAdminPass = getSetting('admin_password');
   if(superAdminPass==null || pass !== superAdminPass){
-    errEl.textContent = 'وشەی نهێنی هەڵەیە ❌';
-    pinFail('deleteDayPassBoxes');
+    pwFail(errEl,'deleteDayPassBoxes');
     return;
   }
   errEl.textContent = '';
+  resetLoginLockState();
   pinSuccess('deleteDayPassBoxes', ()=>{
     db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND day=? AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=?`,
       [selYear, selMonth+1, selDay, currentDeptId]);
@@ -5603,12 +5640,13 @@ function submitAdminUnlock(){
   const input = document.getElementById('adminUnlockPass').value;
   const errEl = document.getElementById('adminUnlockError');
   if(!input){ errEl.textContent='تکایە وشەی نهێنی بنووسە'; return; }
+  if(pwGuard(errEl)) return;
   if(input !== (adminPass + adminPass)){
-    errEl.textContent='وشەی نهێنی هەڵەیە ❌';
-    pinFail('adminUnlockPinBoxes');
+    pwFail(errEl,'adminUnlockPinBoxes');
     return;
   }
   errEl.textContent = '';
+  resetLoginLockState();
   pinSuccess('adminUnlockPinBoxes', ()=>{
     closeModal('adminUnlockModal');
     pinClear('adminUnlockPinBoxes');
