@@ -659,6 +659,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .staleTag-green{background:#e6f6ea;color:#1a7f37;}
   .staleTag-yellow{background:#fff6dd;color:#9a6b00;}
   .staleTag-red{background:#fde8e8;color:#c0392b;}
+  .staleTag-black{background:#222;color:#fff;}
   /* دوگمەی ناردنی بیرخستنەوە بۆ سەرپەرشتیار لە ڕێگەی واتساپ، کاتێک داتای ئەمڕۆ تۆمار نەکراوە */
   .waRemindBtn{
     display:flex;align-items:center;gap:6px;width:100%;margin-top:6px;
@@ -2310,9 +2311,9 @@ function openChangeLogModal(deptId){
 }
 const ACTION_BADGE_META = {
   New: {label:'New', cls:'staleTag-green', text:'زیادکرا'},
-  Edit: {label:'Edit', cls:'staleTag-yellow', text:'دەستکاریکرا'},
-  Upd: {label:'Upd', cls:'staleTag-yellow', text:'ئامادەبوونی ڕۆژانە نوێکرایەوە'},
-  Mov: {label:'Mov', cls:'staleTag-yellow', text:'گوازرایەوە بۆ ئەم بەشە'},
+  Edit: {label:'Edit', cls:'staleTag-red', text:'دەستکاریکرا'},
+  Upd: {label:'Upd', cls:'staleTag-green', text:'ئامادەبوونی ڕۆژانە نوێکرایەوە'},
+  Mov: {label:'Mov', cls:'staleTag-black', text:'گوازرایەوە بۆ ئەم بەشە'},
   Del: {label:'Del', cls:'staleTag-red', text:'سڕایەوە'}
 };
 function formatChangeLogTime(iso){
@@ -2393,6 +2394,13 @@ function getDeptLastAttendanceDate(deptId){
 }
 // دروستکردنی نیشانەی ڕەنگاوڕەنگ کە ڕادەگەیەنێت چەند ڕۆژە داتای بەشەکە نوێ نەکراوەتەوە
 // وەرگرتنی وردەکاری جۆرەکانی گۆڕانکاری بە کورتکراوەی ئینگلیزی (New-Edit-Upd-Del-Mov)
+function actionTagsPills(tags){
+  if(!tags || !tags.length) return '';
+  return tags.map(t=>{
+    const meta = (typeof ACTION_BADGE_META!=='undefined' && ACTION_BADGE_META[t]) ? ACTION_BADGE_META[t] : {cls:'staleTag-yellow'};
+    return `<span class="staleTag ${meta.cls}" style="margin-inline-start:4px;">${t}</span>`;
+  }).join('');
+}
 function actionTagsLabel(tags){
   if(!tags || !tags.length) return '';
   return ' (' + tags.join('-') + ')';
@@ -2400,15 +2408,15 @@ function actionTagsLabel(tags){
 function deptStalenessHtml(deptId){
   const last = getDeptLastAttendanceDate(deptId);
   const today = new Date(); today.setHours(0,0,0,0);
-  const todayTagsLabel = actionTagsLabel(getTodayActionTags(deptId));
+  const todayPills = actionTagsPills(getTodayActionTags(deptId));
   if(!last){
-    return `<span class="staleTag staleTag-red">هیچ ئامادەبوونێک تۆمار نەکراوە${todayTagsLabel}</span>` + waReminderBtnHtml(deptId);
+    return `<span class="staleTag staleTag-red">هیچ ئامادەبوونێک تۆمار نەکراوە</span>${todayPills}` + waReminderBtnHtml(deptId);
   }
   last.setHours(0,0,0,0);
   const days = Math.round((today - last) / 86400000);
-  if(days<=0) return `<span class="staleTag staleTag-green">ئەمڕۆ نوێکراوەتەوە${todayTagsLabel}</span>`;
-  if(days===1) return `<span class="staleTag staleTag-yellow">دوێنێ نوێکراوەتەوە${todayTagsLabel}</span>` + waReminderBtnHtml(deptId);
-  return `<span class="staleTag staleTag-red">${days} ڕۆژە نوێ نەکراوەتەوە${todayTagsLabel}</span>` + waReminderBtnHtml(deptId);
+  if(days<=0) return `<span class="staleTag staleTag-green">ئەمڕۆ نوێکراوەتەوە</span>${todayPills}`;
+  if(days===1) return `<span class="staleTag staleTag-yellow">دوێنێ نوێکراوەتەوە</span>${todayPills}` + waReminderBtnHtml(deptId);
+  return `<span class="staleTag staleTag-red">${days} ڕۆژە نوێ نەکراوەتەوە</span>${todayPills}` + waReminderBtnHtml(deptId);
 }
 // بانەری ناردنی بیرخستنەوە بە واتساپ بۆ سەرپەرشتیاری بەشەکە، تەنها کاتێک ژمارەی تەلەفۆنی زیادکراوە
 function waReminderBtnHtml(deptId){
