@@ -533,7 +533,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dayNewBadge{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;background:#fff3e0;border:1.5px solid #f0c27b;color:#a25f08;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;}
   .dayNewBadge.zero{opacity:.45;background:#f2f3f0;border-color:var(--line);color:var(--muted);}
   .dayNewBadge:active{background:#ffe2b8;}
-  .empDayRow.flashNew{animation:flashNew 1.2s ease-out;}
+  .listItem.flashNew,.empDayRow.flashNew{animation:flashNew 1.2s ease-out;}
   @keyframes flashNew{0%,40%{box-shadow:0 0 0 3px #f0c27b;}100%{box-shadow:0 0 0 0 transparent;}}
   .dayBulkChecks{display:flex;gap:8px;}
   .bulkChk{display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:9px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-size:15px;line-height:1;}
@@ -901,7 +901,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <!-- Employees card -->
     <div class="card" id="employeesCard">
       <div class="rowbetween" style="margin-bottom:10px;">
-        <div class="sectionTitle" style="margin:0;"><span class="liveIcon liveIcon4">👥</span> کارمەندانی ئەم بەشە</div>
+        <div class="sectionTitle" style="margin:0;"><span class="liveIcon liveIcon4">👥</span> کارمەندانی ئەم بەشە <button type="button" id="listNewBadge" class="dayNewBadge zero" style="margin-inline-start:6px;" onclick="goToNewInList()" title="کارمەندی تازە"><span>🆕</span><span id="listNewCount">0</span></button></div>
         <div style="display:flex;gap:8px;align-items:center;">
           <select id="employeesShiftFilter" class="selectBox" onchange="renderEmployeesList()">
             <option value="all">هەموو</option>
@@ -3713,12 +3713,28 @@ function renderEmployeesList(){
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
     const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?(resMap.get(id)?('📥 ئەمڕۆ لە '+resMap.get(id)):'🆕 ئەمڕۆ زیاد کرا'):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
-    if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
+    if(fromToday){ div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;'; div.classList.add('newInList'); }
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
       <div class="btns">${uniBtnHtml(id,currentDeptId,uniMap)}<button class="btn btn-outline btn-sm" onclick="openEditEmployee(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
+  updateListNewBadge();
+}
+function updateListNewBadge(){
+  const nb = document.getElementById('listNewBadge'); if(!nb) return;
+  let n = 0;
+  try{ n = todayResignMap(currentDeptId).size; }catch(e){}
+  document.getElementById('listNewCount').textContent = n;
+  nb.classList.toggle('zero', n===0);
+}
+let _listNewIdx = 0;
+function goToNewInList(){
+  const rows = Array.from(document.querySelectorAll('#employeesList .newInList'));
+  if(!rows.length){ showToast('هیچ کارمەندی تازە نییە'); return; }
+  const r = rows[_listNewIdx % rows.length]; _listNewIdx++;
+  try{ r.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){ r.scrollIntoView(); }
+  r.classList.remove('flashNew'); void r.offsetWidth; r.classList.add('flashNew');
 }
 
 // بەرواری ئەمڕۆی بەش بە شێوەی YYYY-MM-DD (بۆ خانەی ڕۆژی دەستبەکاربوون)
