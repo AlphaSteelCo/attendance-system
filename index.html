@@ -3597,11 +3597,11 @@ function isResignationDeptId(deptId){
   const r = db.exec(`SELECT name FROM departments WHERE id=${deptId}`);
   return !!(r.length && r[0].values.length && RESIGNATION_DEPT_NAMES.includes(String(r[0].values[0][0]||'').trim()));
 }
-// ئەو کارمەندانەی ئەمڕۆ (لە هەموو بەشەکانەوە) گوازراونەتەوە بۆ استیقالە: id => ناوی بەشی پێشوو
+// ئەو کارمەندانەی ئەمڕۆ تازە زیاد کراون یان گوازراونەتەوە بۆ ئەم بەشە: id => ناوی بەشی پێشوو ('' = تازە زیادکراوە)
 function todayResignMap(deptId){
   const m = new Map();
-  if(!deptId || !isClearMonthDept(deptId)) return m;
-  const res = db.exec(`SELECT e.id, COALESCE(d.name,'') FROM employees e LEFT JOIN departments d ON d.id=e.prev_dept_id WHERE e.dept_id=${deptId} AND e.dept_since=${deptTodayInt(deptId)}`);
+  if(!deptId) return m;
+  const res = db.exec(`SELECT e.id, CASE WHEN e.prev_dept_id IS NULL THEN '' ELSE COALESCE(d.name,'') END FROM employees e LEFT JOIN departments d ON d.id=e.prev_dept_id WHERE e.dept_id=${deptId} AND e.dept_since=${deptTodayInt(deptId)}`);
   if(res.length) res[0].values.forEach(([id,pn])=>m.set(id,pn));
   return m;
 }
@@ -3666,7 +3666,7 @@ function renderEmployeesList(){
     div.className='listItem';
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
-    const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?(resMap.get(id)?('📥 ئەمڕۆ لە '+resMap.get(id)):'🆕 ئەمڕۆ زیاد کرا'):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
@@ -4112,7 +4112,7 @@ function renderDeptDetailEmployees(){
   res[0].values.forEach(([id,name,code,shiftType,hours])=>{
     const shiftIcon = shiftType==='شەو' ? '🌙' : (shiftType==='ڕۆژ' ? '🌞' : '');
     const fromToday = resMap.has(id);
-    const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?('📥 ئەمڕۆ'+(resMap.get(id)?(' لە '+resMap.get(id)):'')):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
+    const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?(resMap.get(id)?('📥 ئەمڕۆ لە '+resMap.get(id)):'🆕 ئەمڕۆ زیاد کرا'):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     const div=document.createElement('div');
     div.className='listItem';
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
