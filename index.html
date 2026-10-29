@@ -4078,7 +4078,7 @@ function openDeptDetail(id){
   const jsonB = document.getElementById('deptDetailJsonBtn');
   const clrB = document.getElementById('deptDetailClearMonthBtn');
   const addB = document.getElementById('deptDetailAddEmpBtn');
-  if(jsonB) jsonB.style.display = (isResDept || !hasPerm('add')) ? 'none' : '';
+  if(jsonB) jsonB.style.display = (isResDept || !hasPerm('add') || !isSuperAdminUser()) ? 'none' : '';
   if(addB) addB.style.display = hasPerm('add') ? '' : 'none';
   if(clrB) clrB.style.display = canClear ? '' : 'none';
   if(addBtnsWrap) addBtnsWrap.style.display = (hasPerm('add') || canClear) ? '' : 'none';
@@ -4187,8 +4187,10 @@ function openAddEmployeeForDetail(){
 /* ======================================================================
    زیادکردنی کۆمەڵە کارمەند بەیەکەوە لە ڕێگەی JSON
    ====================================================================== */
+function isSuperAdminUser(){ return !!(currentUser && currentUser.role==='admin'); }
 function openBulkAddModal(){
   if(!deptDetailId) return;
+  if(!isSuperAdminUser()){ showToast('🔒 تەنها سوپەر ئەدمین دەتوانێت بە JSON زیاد بکات'); return; }
   if(!hasPerm('add', deptDetailId)){ showToast('🔒 دەسەڵاتی زیادکردنی کارمەندت لەم بەشەدا نییە'); return; }
   document.getElementById('bulkJsonInput').value='';
   prepStartDateField('bulkStartDate', deptDetailId);
@@ -4201,6 +4203,7 @@ function fillBulkExample(){
   ], null, 2);
 }
 function processBulkAddEmployees(){
+  if(!isSuperAdminUser()){ showToast('🔒 تەنها سوپەر ئەدمین دەتوانێت بە JSON زیاد بکات'); return; }
   if(!hasPerm('add', deptDetailId)){ showToast('🔒 دەسەڵاتی زیادکردنی کارمەندت لەم بەشەدا نییە'); return; }
   const raw = document.getElementById('bulkJsonInput').value.trim();
   if(!raw){ showToast('JSON بنووسە'); return; }
