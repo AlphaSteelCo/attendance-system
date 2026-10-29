@@ -712,6 +712,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .uniItemRow .miniInput{flex:1;margin:0;}
   .uniDate{display:inline-block;padding:2px 9px;border-radius:7px;background:#eef0ea;font-weight:700;font-size:12.5px;}
   .uniDate.old{background:#e53935;color:#fff;}
+  .uniBtn.has{background:#e3f4ea;border-color:#2e9e5b;color:#1e7a43;}
   .uniBtn.due{background:#fdecea;border-color:#e53935;color:#c0392b;}
   .uniLine{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px dashed var(--line);font-size:13px;}
   .uniLine:first-child{border-top:none;}
@@ -3363,7 +3364,7 @@ function uniBtnHtml(id, deptId, map){
   if(!hasUniformPerm(deptId)) return '';
   const e = map && map.get(id);
   const due = !!(e && ((e.clothes && uniIsOld(e.clothes)) || (e.shoes && uniIsOld(e.shoes))));
-  return `<button class="btn btn-outline btn-sm uniBtn${due?' due':''}" title="پۆشاک و پێڵاو" onclick="openUniformModal(${id})">👕</button>`;
+  return `<button class="btn btn-outline btn-sm uniBtn${due?' due':(e&&(e.clothes||e.shoes)?' has':'')}" title="پۆشاک و پێڵاو" onclick="openUniformModal(${id})">👕</button>`;
 }
 let uniEmpId = null, uniEmpDeptId = null;
 function openUniformModal(empId){
