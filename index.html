@@ -530,6 +530,11 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dayHeadRow{gap:10px;}
   .dayHeadRow .dayDeptName{flex:1;min-width:0;font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .dayDeptName{font-size:14px;font-weight:800;}
+  .dayNewBadge{display:none;align-items:center;gap:4px;flex-shrink:0;background:#fff3e0;border:1.5px solid #f0c27b;color:#a25f08;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;}
+  .dayNewBadge.show{display:inline-flex;}
+  .dayNewBadge:active{background:#ffe2b8;}
+  .empDayRow.flashNew{animation:flashNew 1.2s ease-out;}
+  @keyframes flashNew{0%,40%{box-shadow:0 0 0 3px #f0c27b;}100%{box-shadow:0 0 0 0 transparent;}}
   .dayBulkChecks{display:flex;gap:8px;}
   .bulkChk{display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:9px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-size:15px;line-height:1;}
   .bulkChk input{width:17px;height:17px;margin:0;cursor:pointer;}
@@ -968,6 +973,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <div class="modalHead dayHeadRow">
         <h3 id="dayModalTitle" style="display:none;">ڕۆژی --</h3>
         <b id="dayDeptName" class="dayDeptName"></b>
+        <button type="button" id="dayNewBadge" class="dayNewBadge" onclick="goToNewEmployees()" title="کارمەندی تازە"><span>🆕</span><span id="dayNewCount">0</span></button>
         <div class="dayBulkChecks">
           <label class="bulkChk bulkChk-absent" title="هەموو نەهاتوو"><input type="checkbox" id="bulkChkAbsent" onchange="bulkSetDayStatus('absent',this.checked)"><span>❌</span></label>
         </div>
@@ -4453,6 +4459,7 @@ function openDayModal(day){
     `${day} ${KURDISH_MONTHS[selMonth]} ${selYear}`;
   const listWrap = document.getElementById('dayEmployeesList');
   listWrap.innerHTML='';
+  { const nb = document.getElementById('dayNewBadge'); if(nb) nb.classList.remove('show'); }
   dayAttendanceState = {};
   dayLateTimes = {};
   dayNoteText = {};
@@ -4605,8 +4612,22 @@ function openDayModal(day){
 
     applyEmpRowStyle(eid);
   });
+  { const nb = document.getElementById('dayNewBadge');
+    if(nb){
+      const n = listWrap.querySelectorAll('.empDayRow.newArrival').length;
+      document.getElementById('dayNewCount').textContent = n;
+      nb.classList.toggle('show', n>0);
+    } }
   updateDayLiveSummary();
   openModal('dayModal');
+}
+let _newIdx = 0;
+function goToNewEmployees(){
+  const rows = Array.from(document.querySelectorAll('#dayEmployeesList .empDayRow.newArrival')).filter(r=>r.style.display!=='none');
+  if(!rows.length) return;
+  const r = rows[_newIdx % rows.length]; _newIdx++;
+  try{ r.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){ r.scrollIntoView(); }
+  r.classList.remove('flashNew'); void r.offsetWidth; r.classList.add('flashNew');
 }
 
 /* ======================================================================
