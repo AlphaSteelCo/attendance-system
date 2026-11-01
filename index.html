@@ -1230,7 +1230,10 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <h3>دەستکاریکردنی کارمەند</h3>
       <button class="closeX" onclick="closeModal(&#39;editEmployeeModal&#39;)">✕</button>
     </div>
-    <input class="miniInput" id="editEmpName" placeholder="ناوی کارمەند">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input class="miniInput" id="editEmpName" placeholder="ناوی کارمەند" style="flex:1;min-width:0;">
+      <button type="button" class="btn btn-outline btn-sm" id="empAbsLinkBtn" title="ڕۆژانی نەهاتوو و درەنگی کارمەند" onclick="openEmpAbsences()" style="flex-shrink:0;font-size:18px;padding:8px 11px;line-height:1;">📋</button>
+    </div>
     <input class="miniInput" id="editEmpCode" placeholder="ئایدی/ژمارەی کارمەند">
     <label class="muted" style="font-size:12px;">شەفت</label>
     <select id="editEmpShiftType" class="selectBox" style="width:100%;margin:6px 0 10px;">
@@ -1256,7 +1259,6 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" id="saveEmpEditBtn" onclick="saveEmployeeEdit()">💾 پاشەکەوتکردن</button>
     <button class="btn btn-outline" style="display:none;width:100%;margin-bottom:10px;" id="empUniformLinkBtn" onclick="openUniformModal(editingEmpId)">👕 پۆشاک و پێڵاو</button>
-    <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" id="empAbsLinkBtn" onclick="openEmpAbsences()">📋 ڕۆژانی نەهاتوو و درەنگی کارمەند</button>
     <button class="btn btn-danger" style="width:100%;" id="deleteEmpBtn" onclick="deleteEmployee()">🗑️ سڕینەوەی کارمەند</button>
   </div>
 </div>
