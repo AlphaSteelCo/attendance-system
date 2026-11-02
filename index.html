@@ -550,6 +550,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .lateTimeInline.show{display:flex;}
 
   /* ---------- سکرینی جیاواز بۆ تۆمارکردنی یەک کارمەند (ڕۆژانە) ---------- */
+  .listItem .info.nameLink{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .listItem .info.nameLink b{text-decoration:underline dotted;text-underline-offset:4px;}
+  .listItem .info.nameLink:active{opacity:.65;}
   .empInfoInline.tappable{cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .empInfoInline.tappable .empNameInline{text-decoration:underline dotted;text-underline-offset:4px;}
   .empInfoInline.tappable:active{opacity:.65;}
@@ -3717,7 +3720,7 @@ function renderEmployeesList(){
     const extra = [futMap.has(id)?('⏳ دەست دەکات لە '+uniFmt(futMap.get(id))):null, fromToday?(resMap.get(id)?('📥 ئەمڕۆ لە '+resMap.get(id)):'🆕 ئەمڕۆ زیاد کرا'):null, resDate.has(id)?('🗓 ڕۆژی استیقالە: '+uniFmt(resDate.get(id))):null, code?('ئایدی: '+code):null, shiftType?(shiftIcon+' '+shiftType):null, hours?('کات: '+hours):null].filter(Boolean).join(' • ');
     if(fromToday){ div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;'; div.classList.add('newInList'); }
     div.innerHTML=`
-      <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
+      <div class="info nameLink" onclick="openEmpAbsencesById(${id})"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
       <div class="btns">${uniBtnHtml(id,currentDeptId,uniMap)}<button class="btn btn-outline btn-sm" onclick="openEditEmployee(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
@@ -4191,7 +4194,7 @@ function renderDeptDetailEmployees(){
     div.className='listItem';
     if(fromToday) div.style.cssText = 'background:#fff3e0;border-color:#f0c27b;';
     div.innerHTML=`
-      <div class="info"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
+      <div class="info nameLink" onclick="openEmpAbsencesById(${id})"><b>${escapeHtml(name)}</b><span>${escapeHtml(extra||'-')}</span></div>
       <div class="btns">${uniBtnHtml(id,deptDetailId,uniMap)}<button class="btn btn-outline btn-sm" onclick="openEditEmployee(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
@@ -4592,13 +4595,12 @@ function openDayModal(day){
     const arrivalBadge = isArrival ? `<span class="miniBadge arrivalBadge">${arrivalMap.get(eid) ? ('📥 لە '+escapeHtml(arrivalMap.get(eid))) : '🆕 تازە زیاد کرا'}</span>` : '';
     const hasNote = !!(dayNoteText[eid] && dayNoteText[eid].trim());
     row.innerHTML = `
-      <div class="empInfoInline tappable" onclick="openEmpFocus(${eid})" title="کرتە بکە بۆ تۆمارکردنی بەتەواوی">
+      <div class="empInfoInline">
         <b class="empNameInline">${escapeHtml(name)}</b>
         ${codeBadge}
         ${shiftBadge}
         ${hoursBadge}
         ${arrivalBadge}
-        <span class="empOpenHint">‹</span>
       </div>
       <div class="empActionsRow">
         <div class="lateTimeInline" id="lateTimeBox_${eid}">
@@ -5153,6 +5155,12 @@ function onEmpAbsStatusChange(){
   const sel = document.getElementById('empAbsMonthSel');
   buildEmpAbsMonthOptions(sel ? sel.value : 'all');
   renderEmpAbsences();
+}
+// لە لیستی کارمەندان: کلیک لەسەر ناوی کارمەند = پەنجەرەی «ڕۆژانی نەهاتوو و درەنگ»
+function openEmpAbsencesById(id){
+  if(currentUser && currentUser.uniformOnly) return; // ئەدمینی «تەنها پۆشاک» ڕۆژانە نابینێت
+  editingEmpId = id;
+  openEmpAbsences();
 }
 function openEmpAbsences(){
   if(!editingEmpId) return;
