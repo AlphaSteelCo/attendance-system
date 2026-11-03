@@ -4024,16 +4024,18 @@ function renderAllDepartments(){
 
   const totalCountEl = document.getElementById('allDeptsTotalCount');
   if(totalCountEl){
-    const nameList = RESIGNATION_DEPT_NAMES.map(n=>`'${n.replace(/'/g,"''")}'`).join(',');
-    const resignationIdsRes = db.exec(`SELECT id FROM departments WHERE name IN (${nameList})`);
-    const resignationIds = (resignationIdsRes.length ? resignationIdsRes[0].values.map(v=>v[0]) : []);
-    const excludeSql = resignationIds.length ? `AND dept_id NOT IN (${resignationIds.join(',')})` : '';
-    const totalWhereSql = visibleIds!==null
-      ? (visibleIds.length ? `WHERE dept_id IN (${visibleIds.join(',')}) ${excludeSql}` : 'WHERE 0')
-      : (excludeSql ? `WHERE 1=1 ${excludeSql}` : '');
-    const totalRes = db.exec(`SELECT COUNT(*) FROM employees ${totalWhereSql}`);
-    const totalCount = totalRes.length ? totalRes[0].values[0][0] : 0;
-    totalCountEl.textContent = `(کۆی گشتی: ${totalCount} کارمەند)`;
+    // کۆی گشتی: خۆماڵی (هەموو بەشەکان بێجگە Foreigner و استیقالە) + کارمەندی بیانی (بەشی Foreigner)
+    const deptRows = db.exec(`SELECT d.id, d.name, (SELECT COUNT(*) FROM employees e WHERE e.dept_id=d.id) FROM departments d`);
+    let localCount = 0, foreignCount = 0;
+    if(deptRows.length){
+      deptRows[0].values.forEach(([did,dname,cnt])=>{
+        if(visibleIds!==null && !visibleIds.includes(did)) return;
+        const n = String(dname||'').trim().toLowerCase();
+        if(CLEAR_MONTH_DEPT_NAMES.includes(n) || RESIGNATION_DEPT_NAMES.map(x=>x.toLowerCase()).includes(n)) return; // استیقالە هەژمار ناکرێت
+        if(n.includes('foreign') || n.includes('بیانی')) foreignCount += cnt; else localCount += cnt;
+      });
+    }
+    totalCountEl.textContent = `(کۆی گشتی: ${localCount} خۆماڵی + ${foreignCount} کارمەندی بیانی)`;
   }
 
   if(term){
