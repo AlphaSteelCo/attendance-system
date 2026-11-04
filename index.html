@@ -718,6 +718,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .uniItemRow{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   .uniItemRow label{flex:0 0 42%;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;cursor:pointer;}
   .uniItemRow .miniInput{flex:1;margin:0;}
+  .uniNo{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--ink);color:#fff;font-size:11.5px;font-weight:800;margin-inline-end:6px;}
   .uniDate{display:inline-block;padding:2px 9px;border-radius:7px;background:#eef0ea;font-weight:700;font-size:12.5px;}
   .uniDate.old{background:#e53935;color:#fff;}
   .uniBtn.has{background:#e3f4ea;border-color:#2e9e5b;color:#1e7a43;}
@@ -3585,12 +3586,14 @@ function renderUniformReport(){
     const y=Math.floor(mk/100), m=mk%100;
     const em = months.get(mk);
     html += `<div class="dupTitle" style="margin-top:12px;">${KURDISH_MONTHS[m-1]} ${y} <span class="dupBadge">${em.size} کارمەند</span></div>`;
+    let rowNo = 0;
     em.forEach(e=>{
+      rowNo++;
       const lines = e.items.slice().sort((a,b)=>a.item.localeCompare(b.item)).map(it=>{
         const ui = UNI_ITEMS[it.item]||{icon:'',label:it.item};
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;margin-top:3px;"><span>${ui.icon} ${ui.label}${it.size?` • سایز ${escapeHtml(it.size)}`:''}</span><span class="uniDate${(it.isLatest && uniIsOld(it.received))?' old':''}">${uniFmt(it.received)}</span></div>`;
       }).join('');
-      html += `<div class="dupGroup"><div class="dupGroupHead">${escapeHtml(e.name)}${e.code?` <span class="muted" style="font-weight:400;">(${escapeHtml(e.code)})</span>`:''} <span class="dupBadge">${escapeHtml(e.dname)}</span></div>${lines}</div>`;
+      html += `<div class="dupGroup"><div class="dupGroupHead"><span class="uniNo">${rowNo}</span>${escapeHtml(e.name)}${e.code?` <span class="muted" style="font-weight:400;">(${escapeHtml(e.code)})</span>`:''} <span class="dupBadge">${escapeHtml(e.dname)}</span></div>${lines}</div>`;
     });
   });
   list.innerHTML = html;
@@ -4035,7 +4038,7 @@ function renderAllDepartments(){
         if(n.includes('foreign') || n.includes('بیانی')) foreignCount += cnt; else localCount += cnt;
       });
     }
-    totalCountEl.textContent = `(کۆی گشتی: ${localCount} خۆماڵی + ${foreignCount} کارمەندی بیانی)`;
+    totalCountEl.textContent = `(کۆی گشتی: ${localCount} خۆماڵی + ${foreignCount} بیانی)`;
   }
 
   if(term){
