@@ -1422,10 +1422,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <div class="dupTitle" style="margin-top:0;">📦 کۆگا</div>
     <div id="uniStockPanel" style="margin-bottom:10px;"></div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <select id="uniRepMonth" class="selectBox" style="flex:1;" onchange="renderUniformReport()"></select>
-      <button class="btn btn-outline btn-sm" id="uniRepOrderBtn" title="ڕیزکردنی ژمارەکان" onclick="toggleUniRepOrder()">🔢 1 → N</button>
-    </div>
+    <select id="uniRepMonth" class="selectBox" style="width:100%;margin-bottom:8px;" onchange="renderUniformReport()"></select>
     <div id="uniRepSummary" class="muted" style="font-size:12px;margin-bottom:8px;"></div>
     <div id="uniRepList" style="max-height:52vh;overflow-y:auto;margin-bottom:12px;"></div>
     <button class="btn btn-outline" style="width:100%;" id="uniRepPrintBtn" onclick="printUniformReport()">🖨️ پرێنت</button>
@@ -3519,17 +3516,6 @@ function deleteUniformRow(id){
 
 /* ڕاپۆرتی مانگ بە مانگ */
 let uniRepData = [];
-// ڕیزکردنی ژمارەکان: false = 1 → N، true = N → 1 (لە گەورەوە بۆ بچووک)
-let uniRepDesc = false;
-try{ uniRepDesc = localStorage.getItem('uniRepDesc')==='1'; }catch(e){}
-function uniRepOrderLabel(){ return uniRepDesc ? '🔢 N → 1' : '🔢 1 → N'; }
-function toggleUniRepOrder(){
-  uniRepDesc = !uniRepDesc;
-  try{ localStorage.setItem('uniRepDesc', uniRepDesc?'1':'0'); }catch(e){}
-  const b = document.getElementById('uniRepOrderBtn');
-  if(b) b.textContent = uniRepOrderLabel();
-  renderUniformReport();
-}
 function loadUniRepData(){
   const ids = uniformAllowedDeptIds();
   if(!ids.length){ uniRepData = []; return; }
@@ -3544,7 +3530,6 @@ function openUniformReport(){
   if(!hasUniformPerm(null)){ showToast('🔒 دەسەڵاتی پۆشاک و پێڵاوت نییە'); return; }
   loadUniRepData();
   renderUniStockPanel();
-  const ob = document.getElementById('uniRepOrderBtn'); if(ob) ob.textContent = uniRepOrderLabel();
   buildUniRepMonths('all');
   renderUniformReport();
   openModal('uniformReportModal');
@@ -3571,6 +3556,17 @@ function uniRepFiltered(){
   return mv==='all' ? base : base.filter(r=>String(Math.floor(r.received/100))===mv);
 }
 // کۆکردنەوە: مانگ -> کارمەند -> وەرگرتنەکان
+// نوێترین وەرگرتن لە سەرەوە؛ ژمارە بەپێی کات: کۆنترین = 1 و نوێترین = N
+function uniRepOrdered(em){
+  const arr = [...em.values()].map(e=>({
+    e,
+    d: Math.max(...e.items.map(i=>i.received)),
+    id: Math.max(...e.items.map(i=>i.id))
+  }));
+  arr.sort((a,b)=> (a.d-b.d) || (a.id-b.id));
+  arr.forEach((x,i)=>{ x.no = i+1; });
+  return arr.reverse();
+}
 function uniRepGroups(rows){
   const months = new Map();
   rows.forEach(r=>{
@@ -3601,15 +3597,12 @@ function renderUniformReport(){
     const y=Math.floor(mk/100), m=mk%100;
     const em = months.get(mk);
     html += `<div class="dupTitle" style="margin-top:12px;">${KURDISH_MONTHS[m-1]} ${y} <span class="dupBadge">${em.size} کارمەند</span></div>`;
-    let rowNo = 0;
-    em.forEach(e=>{
-      rowNo++;
-      const shownNo = uniRepDesc ? (em.size - rowNo + 1) : rowNo;
+    uniRepOrdered(em).forEach(({e,no:rowNo})=>{
       const lines = e.items.slice().sort((a,b)=>a.item.localeCompare(b.item)).map(it=>{
         const ui = UNI_ITEMS[it.item]||{icon:'',label:it.item};
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;margin-top:3px;"><span>${ui.icon} ${ui.label}${it.size?` • سایز ${escapeHtml(it.size)}`:''}</span><span class="uniDate${(it.isLatest && uniIsOld(it.received))?' old':''}">${uniFmt(it.received)}</span></div>`;
       }).join('');
-      html += `<div class="dupGroup"><div class="dupGroupHead"><span class="uniNo">${shownNo}</span>${escapeHtml(e.name)}${e.code?` <span class="muted" style="font-weight:400;">(${escapeHtml(e.code)})</span>`:''} <span class="dupBadge">${escapeHtml(e.dname)}</span></div>${lines}</div>`;
+      html += `<div class="dupGroup"><div class="dupGroupHead"><span class="uniNo">${rowNo}</span>${escapeHtml(e.name)}${e.code?` <span class="muted" style="font-weight:400;">(${escapeHtml(e.code)})</span>`:''} <span class="dupBadge">${escapeHtml(e.dname)}</span></div>${lines}</div>`;
     });
   });
   list.innerHTML = html;
@@ -3623,13 +3616,12 @@ function printUniformReport(){
   [...months.keys()].sort((a,b)=>b-a).forEach(mk=>{
     const y=Math.floor(mk/100), m=mk%100;
     let n=0, trs='';
-    months.get(mk).forEach(e=>{
+    uniRepOrdered(months.get(mk)).forEach(({e,no})=>{
       const cl = e.items.filter(i=>i.item==='clothes').sort((a,b)=>b.received-a.received)[0];
       const sh = e.items.filter(i=>i.item==='shoes').sort((a,b)=>b.received-a.received)[0];
       const cell = (x)=> x ? `<span class="${(x.isLatest && uniIsOld(x.received))?'old':''}">${uniFmt(x.received)}</span>${x.size?` • ${escapeHtml(x.size)}`:''}` : '—';
       n++;
-      const prNo = uniRepDesc ? (months.get(mk).size - n + 1) : n;
-      trs += `<tr><td>${prNo}</td><td style="text-align:right;">${escapeHtml(e.name)}${e.code?` (${escapeHtml(e.code)})`:''}</td><td>${escapeHtml(e.dname)}</td><td>${cell(cl)}</td><td>${cell(sh)}</td></tr>`;
+      trs += `<tr><td>${no}</td><td style="text-align:right;">${escapeHtml(e.name)}${e.code?` (${escapeHtml(e.code)})`:''}</td><td>${escapeHtml(e.dname)}</td><td>${cell(cl)}</td><td>${cell(sh)}</td></tr>`;
     });
     body += `<h2>${KURDISH_MONTHS[m-1]} ${y} <small>(${n})</small></h2><table><thead><tr><th>#</th><th>کارمەند</th><th>بەش</th><th>👕 پۆشاک (بەروار • سایز)</th><th>👟 پێڵاو (بەروار • سایز)</th></tr></thead><tbody>${trs}</tbody></table>`;
   });
