@@ -1377,8 +1377,9 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <button class="closeX" onclick="closeModal('clearDeptMonthModal')">✕</button>
     </div>
     <p class="muted" style="font-size:13px;margin:0 0 10px;">بەش: <b id="clearMonthDeptName"></b></p>
-    <select id="clearMonthSel" class="selectBox" style="width:100%;margin-bottom:10px;"></select>
-    <p class="muted" style="font-size:12px;margin:0 0 14px;">هەموو تۆمارەکانی ئامادەبوونی ئەو مانگە بۆ ئەم بەشە دەسڕدرێنەوە و ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی سوپەر ئەدمین بنووسە</p>
+    <select id="clearMonthSel" class="selectBox" style="width:100%;margin-bottom:10px;" onchange="updateClearMonthPreview()"></select>
+    <div id="clearMonthPreview" style="font-size:12px;text-align:right;margin-bottom:10px;line-height:1.7;"></div>
+    <p class="muted" style="font-size:12px;margin:0 0 14px;">هەموو کارمەندانی ئەو مانگە (ئەوانەی لەو مانگەدا گوازراونەتەوە بۆ ئەم بەشە) لەگەڵ هەموو داتاکانیان (ئامادەبوون و پۆشاک) دەسڕدرێنەوە و ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی سوپەر ئەدمین بنووسە</p>
     <div class="pinField"><div id="clearMonthPassBoxes"></div><input type="hidden" id="clearMonthPass"><button type="button" class="pinEye" id="clearMonthPassEye" onclick="togglePinVisibility('clearMonthPassBoxes','clearMonthPassEye')">👁️ پیشاندان</button></div>
     <div id="clearMonthError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
     <div style="display:flex;gap:8px;">
@@ -4127,24 +4128,72 @@ function openDeptDetail(id){
   closeModal('allDeptsModal');
   openModal('deptDetailModal');
 }
+// بەپێی هەر مانگ: کارمەندانی ئەو بەشە کە لەو مانگەدا گوازراونەتەوە (یان تۆماریان هەیە) + تۆمارەکانی بەشەکە
+function clearMonthLabel(y,m){ return (!y || !m) ? 'بەرواری نادیار' : (KURDISH_MONTHS[m-1]+' '+y); }
+function clearMonthPlan(deptId){
+  const months = new Map(); // "y-m" => {emps:Set, recs:number}
+  const get = (y,m)=>{ const k=y+'-'+m; if(!months.has(k)) months.set(k,{y,m,emps:new Set(),recs:0}); return months.get(k); };
+  const inDept = db.exec(`SELECT id,dept_since FROM employees WHERE dept_id=${deptId}`);
+  const rec = db.exec(`SELECT employee_id,year,month,COUNT(*) FROM employee_attendance WHERE COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${deptId} GROUP BY employee_id,year,month`);
+  const inDeptSet = new Set(inDept.length ? inDept[0].values.map(v=>v[0]) : []);
+  const sinceMap = new Map(inDept.length ? inDept[0].values.map(v=>[v[0],v[1]]) : []);
+  const lastRecMonth = new Map(); // کارمەندی بێ بەرواری دەستپێک: نوێترین مانگی تۆمارەکانی
+  if(rec.length) rec[0].values.forEach(([eid,y,m,c])=>{
+    get(y,m).recs += c;
+    const key = y*100+m;
+    if(inDeptSet.has(eid) && !sinceMap.get(eid)){
+      if(!lastRecMonth.has(eid) || lastRecMonth.get(eid)<key) lastRecMonth.set(eid,key);
+    }
+  });
+  // کارمەندی بێ بەرواری دەستپێک: نوێترین مانگی تۆمارەکانی لە هەر بەشێک؛ ئەگەر هیچ تۆمارێکی نەبوو = «بەرواری نادیار»
+  const noSince = [...inDeptSet].filter(eid=>!sinceMap.get(eid));
+  const anyLast = new Map();
+  if(noSince.length){
+    const lr = db.exec(`SELECT employee_id, MAX(year*100+month) FROM employee_attendance WHERE employee_id IN (${noSince.join(',')}) GROUP BY employee_id`);
+    if(lr.length) lr[0].values.forEach(([eid,k])=>anyLast.set(eid,k));
+  }
+  inDeptSet.forEach(eid=>{
+    const ds = sinceMap.get(eid);
+    if(ds){ get(Math.floor(ds/10000), Math.floor(ds/100)%100).emps.add(eid); }
+    else if(anyLast.has(eid)){ const k=anyLast.get(eid); get(Math.floor(k/100), k%100).emps.add(eid); }
+    else { get(0,0).emps.add(eid); }
+  });
+  return months;
+}
 let clearMonthDeptId = null;
+function updateClearMonthPreview(){
+  const box = document.getElementById('clearMonthPreview');
+  const sel = document.getElementById('clearMonthSel');
+  if(!box || !sel) return;
+  if(!sel.value){ box.textContent = ''; return; }
+  const [y,m] = sel.value.split('-').map(Number);
+  const cur = clearMonthPlan(clearMonthDeptId).get(y+'-'+m);
+  const ids = cur ? [...cur.emps] : [];
+  if(!ids.length){ box.innerHTML = '<span class="muted">هیچ کارمەندێک بۆ سڕینەوە نییە، تەنها تۆمارەکانی ئەم بەشە دەسڕدرێنەوە</span>'; return; }
+  const r = db.exec(`SELECT name FROM employees WHERE id IN (${ids.join(',')}) ORDER BY name LIMIT 8`);
+  const names = r.length ? r[0].values.map(v=>escapeHtml(v[0])) : [];
+  const more = ids.length - names.length;
+  box.innerHTML = `<b>${ids.length} کارمەند دەسڕدرێنەوە:</b> ${names.join('، ')}${more>0?` و ${more} کەسی تر`:''}`;
+}
 function openClearDeptMonth(deptId, preY, preM){
   clearMonthDeptId = deptId || deptDetailId;
   if(!canClearMonth(clearMonthDeptId)){ showToast('🔒 ئەم کارە بۆ ئەم بەشە ڕێگەپێدراو نییە'); return; }
   if(!clearMonthDeptId) return;
-  const res = db.exec(`SELECT year,month,COUNT(*) FROM employee_attendance WHERE COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${clearMonthDeptId} GROUP BY year,month ORDER BY year DESC,month DESC`);
+  const plan = clearMonthPlan(clearMonthDeptId);
+  const items = [...plan.values()].filter(x=>x.emps.size>0 || x.recs>0).sort((p,q)=> (q.y*100+q.m)-(p.y*100+p.m));
   const sel = document.getElementById('clearMonthSel');
   const btn = document.getElementById('clearMonthConfirmBtn');
   const nm = db.exec(`SELECT name FROM departments WHERE id=${clearMonthDeptId}`);
   document.getElementById('clearMonthDeptName').textContent = nm.length && nm[0].values.length ? nm[0].values[0][0] : '';
-  if(!res.length || !res[0].values.length){
+  if(!items.length){
     sel.innerHTML = '<option value="">هیچ داتایەکی مانگانە نییە</option>';
     sel.disabled = true; if(btn) btn.disabled = true;
   }else{
     sel.disabled = false; if(btn) btn.disabled = false;
-    sel.innerHTML = res[0].values.map(([y,m,c])=>`<option value="${y}-${m}">${KURDISH_MONTHS[m-1]} ${y} (${c} تۆمار)</option>`).join('');
+    sel.innerHTML = items.map(x=>`<option value="${x.y}-${x.m}">${clearMonthLabel(x.y,x.m)} (${x.emps.size} کارمەند • ${x.recs} تۆمار)</option>`).join('');
     if(preY && preM && Array.from(sel.options).some(o=>o.value===`${preY}-${preM}`)) sel.value = `${preY}-${preM}`;
   }
+  updateClearMonthPreview();
   pinClear('clearMonthPassBoxes');
   document.getElementById('clearMonthError').textContent = '';
   openModal('clearDeptMonthModal');
@@ -4169,12 +4218,25 @@ function confirmClearDeptMonth(){
   resetLoginLockState();
   const [y,m] = v.split('-').map(Number);
   pinSuccess('clearMonthPassBoxes', ()=>{
+    const plan2 = clearMonthPlan(clearMonthDeptId);
+    const cur = plan2.get(y+'-'+m);
+    const ids = cur ? [...cur.emps] : [];
+    if(ids.length){
+      // کارمەندەکانی ئەو مانگە لەگەڵ هەموو داتاکانیان
+      db.run(`DELETE FROM employee_attendance WHERE employee_id IN (${ids.join(',')})`);
+      db.run(`DELETE FROM employee_uniform WHERE employee_id IN (${ids.join(',')})`);
+      db.run(`DELETE FROM employees WHERE id IN (${ids.join(',')})`);
+    }
+    // تۆمارەکانی ئەم بەشە لەو مانگەدا (بۆ ئەو کارمەندانەی لە بەشێکی تر ماونەتەوە)
     db.run(`DELETE FROM employee_attendance WHERE year=? AND month=? AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=?`,[y,m,clearMonthDeptId]);
     persistLocal();
-    bumpDeptChange(clearMonthDeptId, 'Del', 'داتای مانگانە', `${KURDISH_MONTHS[m-1]} ${y}`);
+    try{ renderEmployeesList(); }catch(e){}
+    try{ if(deptDetailId) renderDeptDetailEmployees(); }catch(e){}
+    try{ renderMonthlyReport(); }catch(e){}
+    bumpDeptChange(clearMonthDeptId, 'Del', 'داتای مانگانە', `${clearMonthLabel(y,m)} (${ids.length} کارمەند)`);
     closeModal('clearDeptMonthModal');
     pinClear('clearMonthPassBoxes');
-    showToast(`داتای ${KURDISH_MONTHS[m-1]} ${y} سڕایەوە 🗑️`);
+    showToast(`${ids.length} کارمەند و هەموو داتاکانیان سڕانەوە 🗑️`);
     debouncedSync();
   });
 }
