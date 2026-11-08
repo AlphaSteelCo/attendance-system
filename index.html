@@ -1448,7 +1448,10 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <div id="msgIncoming"></div>
     <div class="dupTitle" id="msgComposeTitle">ناردنی نامە</div>
-    <select id="msgDeptSel" class="selectBox" style="width:100%;margin-bottom:8px;" onchange="renderMsgSent()"></select>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <select id="msgToSel" class="selectBox" style="flex:1;" onchange="renderMsgSent()"></select>
+      <select id="msgDeptSel" class="selectBox" style="flex:1;" onchange="renderMsgSent()"></select>
+    </div>
     <textarea id="msgBody" class="miniInput" rows="4" maxlength="1000" placeholder="نامەکەت بنووسە..." style="width:100%;resize:vertical;margin:0;"></textarea>
     <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="sendMessage()">📤 ناردن</button>
     <div id="msgSent" style="margin-top:10px;"></div>
@@ -1816,7 +1819,16 @@ function ensureSchema(){
   // کۆگا: کۆی پۆشاک و پێڵاو کە هەیە
   db.run(`CREATE TABLE IF NOT EXISTS uniform_stock (item TEXT PRIMARY KEY, qty INTEGER NOT NULL DEFAULT 0)`);
   // نامەکان: سوپەر ئەدمین <-> سەرپەرشتیارانی بەشەکان
-  db.run(`CREATE TABLE IF NOT EXISTS app_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER NOT NULL, direction TEXT NOT NULL, sender TEXT, body TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS app_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, dept_id INTEGER NOT NULL, direction TEXT NOT NULL, sender TEXT, body TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT, to_role TEXT, from_role TEXT)`);
+  {
+    const mi = db.exec(`PRAGMA table_info(app_messages)`);
+    const mcols = mi.length ? mi[0].values.map(v=>v[1]) : [];
+    if(!mcols.includes('to_role')){
+      db.run(`ALTER TABLE app_messages ADD COLUMN to_role TEXT`);
+      db.run(`ALTER TABLE app_messages ADD COLUMN from_role TEXT`);
+      db.run(`UPDATE app_messages SET to_role = CASE direction WHEN 'to_admin' THEN 'admin' ELSE 'dept' END, from_role = CASE direction WHEN 'to_admin' THEN 'dept' ELSE 'admin' END`);
+    }
+  }
   db.run(`DELETE FROM app_messages WHERE read_at IS NOT NULL AND read_at < ?`,[new Date(Date.now()-30*86400000).toISOString()]);
   // خشتەی ڕیکۆردی گۆڕانکاریەکان: هەر گۆڕانکارییەک (زیادکردن/دەستکاری/سڕینەوە) بە جیا تۆمار دەکرێت
   // action: 'New' (زیادکراو) | 'Upd' (نوێکراوەتەوە) | 'Del' (سڕدراوەتەوە)
@@ -3346,8 +3358,21 @@ const UNI_ITEMS = { clothes:{icon:'👕',label:'پۆشاک'}, shoes:{icon:'👟'
 /* ===== نامەکان ===== */
 let msgShownIds = [];
 let msgScopeIds = [];
-function msgIsAdmin(){ return !!(currentUser && currentUser.role==='admin'); }
-function msgIncomingDir(){ return msgIsAdmin() ? 'to_admin' : 'to_dept'; }
+function msgMyRole(){
+  if(!currentUser) return '';
+  return currentUser.role==='admin' ? 'admin' : (currentUser.role==='limited_admin' ? 'limited' : 'dept');
+}
+function msgSenderLabel(){
+  const r = msgMyRole();
+  return r==='admin' ? 'سوپەر ئەدمین' : (r==='limited' ? currentUser.name : currentUser.deptName);
+}
+function msgRoleLabel(role){ return role==='admin' ? 'سوپەر ئەدمین' : (role==='limited' ? 'ئەدمینی سنوردار' : 'سەرپەرشتیاری بەش'); }
+function msgRecipientOptions(){
+  const r = msgMyRole();
+  if(r==='admin') return ['dept','limited'];
+  if(r==='limited') return ['admin','dept'];
+  return ['admin','limited'];
+}
 function msgMyDeptIds(){
   if(!currentUser) return [];
   if(currentUser.role==='admin'){ const r=db.exec(`SELECT id FROM departments`); return r.length ? r[0].values.map(v=>v[0]) : []; }
@@ -3361,7 +3386,7 @@ function msgUnreadMap(){
   const ids = msgMyDeptIds();
   if(!ids.length) return m;
   let r;
-  try{ r = db.exec(`SELECT dept_id, COUNT(*) FROM app_messages WHERE direction='${msgIncomingDir()}' AND read_at IS NULL AND dept_id IN (${ids.join(',')}) GROUP BY dept_id`); }catch(e){ return m; }
+  try{ r = db.exec(`SELECT dept_id, COUNT(*) FROM app_messages WHERE to_role='${msgMyRole()}' AND read_at IS NULL AND dept_id IN (${ids.join(',')}) GROUP BY dept_id`); }catch(e){ return m; }
   if(r.length) r[0].values.forEach(([d,c])=>m.set(d,c));
   return m;
 }
@@ -3390,19 +3415,22 @@ function openMessages(deptId){
   const mine = msgMyDeptIds();
   msgScopeIds = (deptId && mine.includes(deptId)) ? [deptId] : mine;
   if(!msgScopeIds.length){ showToast('هیچ بەشێک بۆ نامە نییە'); return; }
+  const showDept = (currentUser.role!=='dept');
   // نامە نەخوێندراوەکان
-  const r = db.exec(`SELECT m.id,m.dept_id,COALESCE(d.name,'-'),m.sender,m.body,m.created_at FROM app_messages m LEFT JOIN departments d ON d.id=m.dept_id WHERE m.direction='${msgIncomingDir()}' AND m.read_at IS NULL AND m.dept_id IN (${msgScopeIds.join(',')}) ORDER BY m.id ASC`);
+  const r = db.exec(`SELECT m.id,m.dept_id,COALESCE(d.name,'-'),m.sender,m.from_role,m.body,m.created_at FROM app_messages m LEFT JOIN departments d ON d.id=m.dept_id WHERE m.to_role='${msgMyRole()}' AND m.read_at IS NULL AND m.dept_id IN (${msgScopeIds.join(',')}) ORDER BY m.id ASC`);
   const rows = r.length ? r[0].values : [];
   msgShownIds = rows.map(x=>x[0]);
   const inc = document.getElementById('msgIncoming');
   if(!rows.length){
     inc.innerHTML = '<div class="muted" style="text-align:center;padding:10px 0;font-size:13px;">هیچ نامەیەکی نوێ نییە</div>';
   }else{
-    inc.innerHTML = '<div class="dupTitle" style="margin-top:0;">📩 نامە نوێیەکان ('+rows.length+')</div>' + rows.map(([id,did,dname,sender,body,ts])=>`
-      <div class="msgCard"><div class="meta"><span>${msgIsAdmin()?escapeHtml(dname)+' • ':''}${escapeHtml(sender||'')}</span><span>${escapeHtml(new Date(ts).toLocaleString('en-GB'))}</span></div><div class="txt">${escapeHtml(body)}</div></div>`).join('')
+    inc.innerHTML = '<div class="dupTitle" style="margin-top:0;">📩 نامە نوێیەکان ('+rows.length+')</div>' + rows.map(([id,did,dname,sender,frole,body,ts])=>`
+      <div class="msgCard"><div class="meta"><span>${showDept?escapeHtml(dname)+' • ':''}${escapeHtml(sender||'')}${frole?' ('+msgRoleLabel(frole)+')':''}</span><span>${escapeHtml(new Date(ts).toLocaleString('en-GB'))}</span></div><div class="txt">${escapeHtml(body)}</div></div>`).join('')
       + '<div class="muted" style="font-size:11.5px;margin:-2px 0 8px;">دوای داخستن ئەم نامانە نامێنن</div>';
   }
-  // ناردن
+  // ناردن: وەرگر + بەش
+  const toSel = document.getElementById('msgToSel');
+  toSel.innerHTML = msgRecipientOptions().map(rl=>`<option value="${rl}">بۆ ${msgRoleLabel(rl)}</option>`).join('');
   const sel = document.getElementById('msgDeptSel');
   const nameRes = db.exec(`SELECT id,name FROM departments WHERE id IN (${mine.join(',')}) ORDER BY name`);
   const opts = nameRes.length ? nameRes[0].values : [];
@@ -3410,7 +3438,7 @@ function openMessages(deptId){
   const pref = (deptId && mine.includes(deptId)) ? deptId : (mine.includes(currentDeptId) ? currentDeptId : mine[0]);
   sel.value = String(pref);
   sel.style.display = (opts.length>1) ? '' : 'none';
-  document.getElementById('msgComposeTitle').textContent = msgIsAdmin() ? 'ناردنی نامە بۆ سەرپەرشتیاری بەشەکە' : 'ناردنی نامە بۆ سوپەر ئەدمین';
+  document.getElementById('msgComposeTitle').textContent = 'ناردنی نامە';
   document.getElementById('msgBody').value = '';
   renderMsgSent();
   openModal('messagesModal');
@@ -3419,22 +3447,23 @@ function renderMsgSent(){
   const box = document.getElementById('msgSent');
   const did = parseInt(document.getElementById('msgDeptSel').value,10);
   if(!box || !did){ if(box) box.innerHTML=''; return; }
-  const outDir = msgIsAdmin() ? 'to_dept' : 'to_admin';
-  const r = db.exec(`SELECT body,created_at,read_at FROM app_messages WHERE direction='${outDir}' AND dept_id=${did} ORDER BY id DESC LIMIT 5`);
+  const r = db.exec(`SELECT body,created_at,read_at,to_role FROM app_messages WHERE from_role='${msgMyRole()}' AND sender=? AND dept_id=${did} ORDER BY id DESC LIMIT 5`,[msgSenderLabel()]);
   if(!r.length || !r[0].values.length){ box.innerHTML=''; return; }
-  box.innerHTML = '<div class="dupTitle">ناردراوەکان</div>' + r[0].values.map(([body,ts,rd])=>{
-    const short = body.length>60 ? body.slice(0,60)+'…' : body;
-    return `<div class="msgSent"><span>${escapeHtml(short)}</span><span style="white-space:nowrap;color:${rd?'#2e9e4f':'var(--muted)'};">${rd?'✓ خوێندرایەوە':'⏳ نەخوێندراوەتەوە'}</span></div>`;
+  box.innerHTML = '<div class="dupTitle">ناردراوەکان</div>' + r[0].values.map(([body,ts,rd,tr])=>{
+    const short = body.length>50 ? body.slice(0,50)+'…' : body;
+    return `<div class="msgSent"><span>${escapeHtml(short)} <span class="muted">→ ${msgRoleLabel(tr)}</span></span><span style="white-space:nowrap;color:${rd?'#2e9e4f':'var(--muted)'};">${rd?'✓ خوێندرایەوە':'⏳ نەخوێندراوەتەوە'}</span></div>`;
   }).join('');
 }
 function sendMessage(){
   if(!currentUser) return;
   const body = document.getElementById('msgBody').value.trim();
   const did = parseInt(document.getElementById('msgDeptSel').value,10);
+  const toRole = document.getElementById('msgToSel').value;
   if(!body){ showToast('تکایە نامەکە بنووسە'); return; }
   if(!did || !msgMyDeptIds().includes(did)){ showToast('بەش دروست نییە'); return; }
-  const sender = msgIsAdmin() ? 'سوپەر ئەدمین' : (currentUser.role==='limited_admin' ? currentUser.name : currentUser.deptName);
-  db.run(`INSERT INTO app_messages (dept_id,direction,sender,body,created_at) VALUES (?,?,?,?,?)`,[did, msgIsAdmin()?'to_dept':'to_admin', sender, body.slice(0,1000), new Date().toISOString()]);
+  if(!msgRecipientOptions().includes(toRole)){ showToast('وەرگر دروست نییە'); return; }
+  db.run(`INSERT INTO app_messages (dept_id,direction,to_role,from_role,sender,body,created_at) VALUES (?,?,?,?,?,?,?)`,
+    [did, toRole==='admin'?'to_admin':'to_dept', toRole, msgMyRole(), msgSenderLabel(), body.slice(0,1000), new Date().toISOString()]);
   persistLocal();
   document.getElementById('msgBody').value = '';
   renderMsgSent();
