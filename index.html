@@ -669,6 +669,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .fbBadge.chg-black, .redDot.chg-black{background:#222;}
   .fbBadge.chg-blue, .redDot.chg-blue{background:#1e88e5;}
   .fbBadge.chg-purple, .redDot.chg-purple{background:#8e24aa;}
+  .fbBadge.chg-orange, .redDot.chg-orange{background:#f57c00;}
 
   /* نیشانەی دواین‌جار نوێکردنەوەی داتای بەش، بۆ چاودێریکردنی ئەدمین */
   .staleTag{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;}
@@ -681,6 +682,11 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .actTag-red{background:#e53935;color:#fff;}
   .actTag-black{background:#222;color:#fff;}
   .actTag-purple{background:#8e24aa;color:#fff;}
+  .actTag-orange{background:#f57c00;color:#fff;}
+  /* نووسینی سپی بۆ هەموو نیشانە ڕەنگاوڕەنگەکان (با لە ناو لیستیش بێت و ڕەنگی خۆڵەمێشی لیستەکە نەیگۆڕێت) */
+  .actTag-blue,.actTag-green,.actTag-red,.actTag-black,.actTag-purple,.actTag-orange,.staleTag-black,
+  .listItem .info .actTag-blue,.listItem .info .actTag-green,.listItem .info .actTag-red,.listItem .info .actTag-black,.listItem .info .actTag-purple,.listItem .info .actTag-orange,.listItem .info .staleTag-black,
+  .fbBadge,.listItem .info .fbBadge{color:#fff !important;}
   /* دوگمەی ناردنی بیرخستنەوە بۆ سەرپەرشتیار لە ڕێگەی واتساپ، کاتێک داتای ئەمڕۆ تۆمار نەکراوە */
   .waRemindBtn{
     display:flex;align-items:center;gap:6px;width:100%;margin-top:6px;
@@ -2295,6 +2301,7 @@ function logDeptChange(deptId){
    ====================================================================== */
 function logChangeEvent(deptId, action, entityType, entityName){
   if(!deptId || !db) return;
+  if(action==='New' && entityType==='کارمەند') action = 'Emp'; // کارمەندی تازە جیاوازە لە «نوێ»ی تر (وەک شەفت)
   const now = new Date().toISOString();
   let actor = 'سەرپەرشتیار';
   if(currentUser){
@@ -2315,10 +2322,10 @@ function getTodayActionTags(deptId){
   const todayStr = new Date().toISOString().slice(0,10);
   let res;
   try{
-    res = db.exec(`SELECT DISTINCT action FROM change_log WHERE dept_id=${deptId} AND substr(changed_at,1,10)='${todayStr}'`);
+    res = db.exec(`SELECT DISTINCT CASE WHEN action='New' AND entity_type='کارمەند' THEN 'Emp' ELSE action END FROM change_log WHERE dept_id=${deptId} AND substr(changed_at,1,10)='${todayStr}'`);
   }catch(e){ return []; }
   if(!res.length) return [];
-  const order = {New:0, Edit:1, Mov:2, Upd:3, Del:4};
+  const order = {New:0, Emp:1, Edit:2, Mov:3, Upd:4, Del:5};
   return res[0].values.map(v=>v[0]).sort((a,b)=>(order[a]??9)-(order[b]??9));
 }
 // وەرگرتنی لیستی ڕیکۆردەکانی گۆڕانکاری بۆ بەشێک، نوێترین لە سەرەوە
@@ -2329,7 +2336,7 @@ function getChangeLogForDept(deptId, limit){
     res = db.exec(`SELECT action, entity_type, entity_name, actor, changed_at FROM change_log WHERE dept_id=${deptId} ORDER BY id DESC LIMIT ${limit||100}`);
   }catch(e){ return []; }
   if(!res.length) return [];
-  return res[0].values.map(([action,entityType,entityName,actor,changedAt])=>({action,entityType,entityName,actor,changedAt}));
+  return res[0].values.map(([action,entityType,entityName,actor,changedAt])=>({action:(action==='New' && entityType==='کارمەند') ? 'Emp' : action,entityType,entityName,actor,changedAt}));
 }
 // کردنەوەی مۆداڵی مێژووی گۆڕانکاری بۆ بەشێکی دیاریکراو
 function openChangeLogModal(deptId){
@@ -2342,6 +2349,7 @@ function openChangeLogModal(deptId){
 }
 const ACTION_BADGE_META = {
   New: {label:'New', cls:'actTag-blue', text:'زیادکرا'},
+  Emp: {label:'Emp', cls:'actTag-orange', text:'کارمەندی تازە زیادکرا'},
   Edit: {label:'Edit', cls:'actTag-red', text:'دەستکاریکرا'},
   Upd: {label:'Upd', cls:'actTag-green', text:'ئامادەبوونی ڕۆژانە نوێکرایەوە'},
   Mov: {label:'Mov', cls:'actTag-black', text:'گوازرایەوە بۆ ئەم بەشە'},
@@ -2406,13 +2414,14 @@ function getUnseenDeptChanges(){
 function deptChangeColorClass(deptId){
   if(!db) return '';
   let res;
-  try{ res = db.exec(`SELECT action FROM change_log WHERE dept_id=${deptId} ORDER BY id DESC LIMIT 1`); }catch(e){ return ''; }
+  try{ res = db.exec(`SELECT CASE WHEN action='New' AND entity_type='کارمەند' THEN 'Emp' ELSE action END FROM change_log WHERE dept_id=${deptId} ORDER BY id DESC LIMIT 1`); }catch(e){ return ''; }
   if(!res.length || !res[0].values.length) return '';
   const a = res[0].values[0][0];
   if(a==='Mov') return 'chg-black';
   if(a==='Edit') return 'chg-red';
   if(a==='Upd') return 'chg-green';
   if(a==='New') return 'chg-blue';
+  if(a==='Emp') return 'chg-orange';
   if(a==='Del') return 'chg-purple';
   return '';
 }
