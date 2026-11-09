@@ -667,6 +667,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .fbBadge.chg-green, .redDot.chg-green{background:#2e9e4f;}
   .fbBadge.chg-red, .redDot.chg-red{background:#e53935;}
   .fbBadge.chg-black, .redDot.chg-black{background:#222;}
+  .fbBadge.chg-blue, .redDot.chg-blue{background:#1e88e5;}
+  .fbBadge.chg-purple, .redDot.chg-purple{background:#8e24aa;}
 
   /* نیشانەی دواین‌جار نوێکردنەوەی داتای بەش، بۆ چاودێریکردنی ئەدمین */
   .staleTag{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;}
@@ -674,6 +676,11 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .staleTag-yellow{background:#fff6dd;color:#9a6b00;}
   .staleTag-red{background:#fde8e8;color:#c0392b;}
   .staleTag-black{background:#222;color:#fff;}
+  .actTag-blue{background:#1e88e5;color:#fff;}
+  .actTag-green{background:#2e9e4f;color:#fff;}
+  .actTag-red{background:#e53935;color:#fff;}
+  .actTag-black{background:#222;color:#fff;}
+  .actTag-purple{background:#8e24aa;color:#fff;}
   /* دوگمەی ناردنی بیرخستنەوە بۆ سەرپەرشتیار لە ڕێگەی واتساپ، کاتێک داتای ئەمڕۆ تۆمار نەکراوە */
   .waRemindBtn{
     display:flex;align-items:center;gap:6px;width:100%;margin-top:6px;
@@ -2334,11 +2341,11 @@ function openChangeLogModal(deptId){
   openModal('changeLogModal');
 }
 const ACTION_BADGE_META = {
-  New: {label:'New', cls:'staleTag-green', text:'زیادکرا'},
-  Edit: {label:'Edit', cls:'staleTag-red', text:'دەستکاریکرا'},
-  Upd: {label:'Upd', cls:'staleTag-green', text:'ئامادەبوونی ڕۆژانە نوێکرایەوە'},
-  Mov: {label:'Mov', cls:'staleTag-black', text:'گوازرایەوە بۆ ئەم بەشە'},
-  Del: {label:'Del', cls:'staleTag-red', text:'سڕایەوە'}
+  New: {label:'New', cls:'actTag-blue', text:'زیادکرا'},
+  Edit: {label:'Edit', cls:'actTag-red', text:'دەستکاریکرا'},
+  Upd: {label:'Upd', cls:'actTag-green', text:'ئامادەبوونی ڕۆژانە نوێکرایەوە'},
+  Mov: {label:'Mov', cls:'actTag-black', text:'گوازرایەوە بۆ ئەم بەشە'},
+  Del: {label:'Del', cls:'actTag-purple', text:'سڕایەوە'}
 };
 function formatChangeLogTime(iso){
   try{
@@ -2403,8 +2410,10 @@ function deptChangeColorClass(deptId){
   if(!res.length || !res[0].values.length) return '';
   const a = res[0].values[0][0];
   if(a==='Mov') return 'chg-black';
-  if(a==='Edit' || a==='Del') return 'chg-red';
-  if(a==='Upd' || a==='New') return 'chg-green';
+  if(a==='Edit') return 'chg-red';
+  if(a==='Upd') return 'chg-green';
+  if(a==='New') return 'chg-blue';
+  if(a==='Del') return 'chg-purple';
   return '';
 }
 function deptChangeBadgeHtml(deptId){
