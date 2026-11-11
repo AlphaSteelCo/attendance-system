@@ -635,7 +635,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .absBadgeTotal{background:var(--bad);color:#fff;border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:800;white-space:nowrap;}
   .absDatesWrap{display:flex;flex-wrap:wrap;gap:6px;}
   .absDateChip{background:var(--bad-bg);border:1.5px solid var(--bad);border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;color:var(--bad);white-space:nowrap;cursor:pointer;}
-  .absDateChip.late{background:#eef6ee;border-color:#8bb894;color:#4a7c52;}
+  .absDateChip.late{background:#e3f0ff;border-color:#1e88e5;color:#1565c0;}
+  .absDateChip.fri{background:#e6f4ea;}
   .absDateChip.no-click{cursor:default;}
   .absDateChip:hover{opacity:.8;}
   .numRow{display:flex;gap:8px;}
@@ -3177,7 +3178,7 @@ function renderMonthlyReport(){
     const codeChip = emp_code ? `<span class="absCodeChip">${escapeHtml(emp_code)}</span>` : '';
     const dateChips = days.map(({day,status})=>{
       const dateStr = `${pad2(day)}/${pad2(selMonth+1)}/${selYear}`;
-      const lateCls = status==='late' ? ' late' : '';
+      const lateCls = (status==='late' ? ' late' : '') + (new Date(selYear, selMonth, day).getDay()===5 ? ' fri' : '');
       const clickAttr = isResignationDept ? '' : ` onclick="openDayModal(${day})"`;
       const noClickCls = isResignationDept ? ' no-click' : '';
       return `<span class="absDateChip${lateCls}${noClickCls}"${clickAttr}>📅${dateStr}</span>`;
