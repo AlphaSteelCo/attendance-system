@@ -5345,6 +5345,9 @@ function printEmpAbsences(){
   tr.pr-fri td{ background:#e6f4ea; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   tr{ page-break-inside:avoid; }
   .prSummary{ margin-top:14px; font-size:13.5px; font-weight:700; display:flex; gap:20px; flex-wrap:wrap; }
+  .prSign{ display:flex; justify-content:space-between; gap:40px; margin-top:70px; page-break-inside:avoid; }
+  .prSignBox{ flex:1; text-align:center; }
+  .prSignBox .line{ border-top:1.5px solid #333; padding-top:8px; font-size:13.5px; font-weight:700; }
   .prFooterNote{ margin-top:26px; font-size:11px; color:#777; text-align:left; }
   @media print{ body{ padding:8px; } }
 </style>
@@ -5359,6 +5362,10 @@ function printEmpAbsences(){
     <tbody>${trs}</tbody>
   </table>
   <div class="prSummary"><span class="pr-absent">✘ نەهاتوو: ${abs}</span><span class="pr-late">🕒 درەنگ: ${late}</span><span>کۆ: ${rows.length}</span></div>
+  <div class="prSign">
+    <div class="prSignBox"><div class="line">سەرپەرشتیاری ڕاستەوخۆ</div></div>
+    <div class="prSignBox"><div class="line">بەڕێوبەری سەرچاوە مرۆییەکان</div></div>
+  </div>
   <div class="prFooterNote">چاپکراوە: ${escapeHtml(printedAt)}</div>
 </body>
 </html>`;
