@@ -748,6 +748,26 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   }
   .eyeToggle:active{background:var(--bg);}
 
+  /* ===== نیشانەی ئەپڵۆدی داتابەیس ===== */
+  #uploadOverlay{
+    position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;
+    background:rgba(20,20,10,.55);padding:20px;
+  }
+  #uploadOverlay.show{display:flex;}
+  .uploadBox{
+    background:#fff;border-radius:18px;max-width:340px;width:100%;padding:26px 20px 22px;text-align:center;
+    box-shadow:0 12px 40px rgba(0,0,0,.25);animation:slideUp .18s ease-out;
+  }
+  .uploadSpinner{width:44px;height:44px;margin:0 auto 14px;border-radius:50%;border:4px solid rgba(0,0,0,.08);border-top-color:var(--brand-dark);animation:bootSpin .8s linear infinite;}
+  .uploadIcon{font-size:44px;line-height:1;margin-bottom:12px;display:none;}
+  .uploadTitle{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+  .uploadText{font-size:13px;color:var(--muted);line-height:1.7;}
+  .uploadRetry{display:none;margin-top:16px;width:100%;padding:12px;border:none;border-radius:12px;background:var(--brand);color:#2c2c00;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;}
+  .uploadRetry:active{background:var(--brand-dark);}
+  #uploadOverlay.failed .uploadSpinner,#uploadOverlay.done .uploadSpinner{display:none;}
+  #uploadOverlay.failed .uploadIcon,#uploadOverlay.done .uploadIcon{display:block;}
+  #uploadOverlay.failed .uploadRetry{display:block;}
+
   .toast{
     position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
     padding:10px 18px;border-radius:30px;font-size:13px;z-index:100;opacity:0;transition:.25s;pointer-events:none;
@@ -955,6 +975,15 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   </div>
 </div>
 
+<div id="uploadOverlay" role="alertdialog" aria-live="assertive">
+  <div class="uploadBox">
+    <div class="uploadSpinner"></div>
+    <div class="uploadIcon" id="uploadIcon">⚠️</div>
+    <div class="uploadTitle" id="uploadTitle">ئەپڵۆدکردن...</div>
+    <div class="uploadText" id="uploadText">تکایە چاوەڕێبە تا داتا دەنێردرێت بۆ داتابەیس. سیستەمەکە دامەخە.</div>
+    <button type="button" class="uploadRetry" onclick="retryUpload()">🔄 هەوڵبدەرەوە</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <!-- ===== Recent Changes List Modal (پیشاندان دوای چوونەژوورەوە) ===== -->
@@ -6009,14 +6038,72 @@ async function downloadFromSupabase(){
 }
 
 let syncTimer=null;
+let uploadBusy=false, uploadRerun=false;
+function showUploadOverlay(state){
+  const ov=document.getElementById('uploadOverlay');
+  if(!ov) return;
+  ov.classList.remove('failed','done');
+  const t=document.getElementById('uploadTitle'), x=document.getElementById('uploadText'), ic=document.getElementById('uploadIcon');
+  if(state==='failed'){
+    ov.classList.add('failed');
+    ic.textContent='⚠️';
+    t.textContent='ئەپڵۆد سەرکەوتوو نەبوو';
+    x.textContent= isOnline()
+      ? 'داتاکە هێشتا نەگەیشتووەتە داتابەیس. تکایە دووبارە هەوڵبدەرەوە و سیستەمەکە دامەخە.'
+      : 'بەهۆی کێشەی ئینتەرنێتەوە داتاکە نەنێردرا. ئینتەرنێت چالاک بکە و دووبارە هەوڵبدەرەوە.';
+  }else if(state==='done'){
+    ov.classList.add('done');
+    ic.textContent='✅';
+    t.textContent='داتا بە سەرکەوتوویی نێردرا';
+    x.textContent='داتابەیس تازەکرایەوە.';
+  }else{
+    t.textContent='ئەپڵۆدکردن...';
+    x.textContent='تکایە چاوەڕێبە تا داتا دەنێردرێت بۆ داتابەیس. سیستەمەکە دامەخە.';
+  }
+  ov.classList.add('show');
+}
+function hideUploadOverlay(){
+  const ov=document.getElementById('uploadOverlay');
+  if(ov) ov.classList.remove('show','failed','done');
+}
+async function uploadWithIndicator(){
+  if(uploadBusy){ uploadRerun=true; return; }
+  uploadBusy=true;
+  uploadRerun=false;
+  showUploadOverlay('uploading');
+  let ok=false;
+  try{
+    // ئەگەر هاوکاتکردنێکی تر بەڕێوەیە، چاوەڕێی دەکەین
+    for(let i=0;i<50 && syncInFlight;i++) await new Promise(r=>setTimeout(r,100));
+    ok = await uploadToSupabase();
+  }catch(e){ ok=false; }
+  uploadBusy=false;
+  if(uploadRerun){ uploadRerun=false; return uploadWithIndicator(); }
+  if(ok){
+    showUploadOverlay('done');
+    setTimeout(()=>{ if(!uploadBusy) hideUploadOverlay(); }, 900);
+  }else{
+    showUploadOverlay('failed');
+  }
+}
+function retryUpload(){ uploadWithIndicator(); }
+
 function debouncedSync(){
   persistLocal();
+  // هەر لە کاتی پاشەکەوتکردنەوە نیشانەی ئەپڵۆد دەردەکەوێت، تا داتا دەگاتە داتابەیس
+  showUploadOverlay('uploading');
   clearTimeout(syncTimer);
-  syncTimer=setTimeout(()=>{
-    if(isOnline()) uploadToSupabase();
-    else setSyncStatus('offline');
-  },1500);
+  syncTimer=setTimeout(()=>{ syncTimer=null; uploadWithIndicator(); },400);
 }
+
+// ئاگادارکردنەوە ئەگەر بەکارهێنەر هەوڵبدات لاپەڕە دابخات پێش گەیشتنی داتا بۆ داتابەیس
+window.addEventListener('beforeunload', e=>{
+  if(localDirty || uploadBusy || syncTimer){
+    e.preventDefault();
+    e.returnValue='';
+    return '';
+  }
+});
 
 // تەنها کاتی نوێترین updated_at لە cloud وەردەگرێت، بەبێ ئەوەی هەموو داتابەیسەکە دابەزێنێت
 async function getRemoteUpdatedAt(){
