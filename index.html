@@ -728,7 +728,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .dupBadge.same{background:#fdecea;color:var(--bad);font-weight:700;}
   .dupTitle{font-size:13px;font-weight:800;margin:10px 0 6px;}
   .resignView .tabsRow, .resignView #calendarCard, .resignView #shiftsCard, .resignView #monthlyView, .resignView #dailyReminderBanner{display:none !important;}
-  .uniformOnly .tabsRow, .uniformOnly #calendarCard, .uniformOnly #shiftsCard, .uniformOnly #monthlyView, .uniformOnly #dailyReminderBanner, .uniformOnly #empAbsLinkBtn{display:none !important;}
+  .uniformOnly .tabsRow, .uniformOnly #calendarCard, .uniformOnly #shiftsCard, .uniformOnly #monthlyView, .uniformOnly #dailyReminderBanner, .uniformOnly #empAbsLinkBtn, .uniformOnly #empHistoryLinkBtn{display:none !important;}
   .uniItemRow{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   .uniItemRow label{flex:0 0 42%;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;cursor:pointer;}
   .uniItemRow .miniInput{flex:1;margin:0;}
@@ -1280,6 +1280,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     <div style="display:flex;align-items:stretch;gap:8px;margin-bottom:8px;">
       <input class="miniInput" id="editEmpName" placeholder="ناوی کارمەند" style="flex:1;min-width:0;margin:0;">
       <button type="button" class="btn btn-outline btn-sm" id="empAbsLinkBtn" title="ڕۆژانی نەهاتوو و درەنگی کارمەند" onclick="openEmpAbsences()" style="flex-shrink:0;font-size:18px;padding:0 13px;line-height:1;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;">📋</button>
+    <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" id="empHistoryLinkBtn" onclick="openEmpHistory(editingEmpId)">📜 مێژووی کارمەند</button>
     </div>
     <input class="miniInput" id="editEmpCode" placeholder="ئایدی/ژمارەی کارمەند">
     <label class="muted" style="font-size:12px;">شەفت</label>
@@ -1473,6 +1474,18 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   </div>
 </div>
 
+
+<div class="overlay" id="empHistoryModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modalHead">
+      <h3>📜 مێژووی کارمەند</h3>
+      <button class="closeX" onclick="closeModal('empHistoryModal')">✕</button>
+    </div>
+    <div id="empHistHeader" style="font-size:13.5px;font-weight:800;margin-bottom:4px;"></div>
+    <div id="empHistSummary" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
+    <div id="empHistList" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
 
 <div class="overlay" id="settingsModal">
 
@@ -1834,6 +1847,22 @@ function ensureSchema(){
   db.run(`CREATE INDEX IF NOT EXISTS idx_uniform_emp ON employee_uniform (employee_id, item)`);
   // کۆگا: کۆی پۆشاک و پێڵاو کە هەیە
   db.run(`CREATE TABLE IF NOT EXISTS uniform_stock (item TEXT PRIMARY KEY, qty INTEGER NOT NULL DEFAULT 0)`);
+  // مێژووی کارمەند: گواستنەوە، گۆڕینی ناو و کۆد، زیادکردن
+  {
+    const histExisted = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='employee_history'`).length > 0;
+    db.run(`CREATE TABLE IF NOT EXISTS employee_history (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, event TEXT NOT NULL, old_value TEXT, new_value TEXT, happened_at TEXT NOT NULL, actor TEXT)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_emp_hist ON employee_history (employee_id)`);
+    if(!histExisted){
+      // گواستنەوە کۆنەکان کە بەشی پێشوو و بەرواریان هەیە
+      try{
+        const ec = db.exec(`PRAGMA table_info(employees)`);
+        const ecn = ec.length ? ec[0].values.map(v=>v[1]) : [];
+        if(ecn.includes('prev_dept_id') && ecn.includes('dept_since')){
+          db.run(`INSERT INTO employee_history (employee_id,event,old_value,new_value,happened_at,actor) SELECT e.id,'moved',COALESCE(pd.name,''),COALESCE(d.name,''),substr(e.dept_since,1,4)||'-'||substr(e.dept_since,5,2)||'-'||substr(e.dept_since,7,2)||'T12:00:00','' FROM employees e LEFT JOIN departments pd ON pd.id=e.prev_dept_id LEFT JOIN departments d ON d.id=e.dept_id WHERE e.prev_dept_id IS NOT NULL AND e.dept_since IS NOT NULL`);
+        }
+      }catch(e){}
+    }
+  }
   // فیچەری نامەکان لابرا: خشتە کۆنەکەی لە داتابەیسە هەبووەکان دەسڕێتەوە
   db.run(`DROP TABLE IF EXISTS app_messages`);
   // نامەکان: سوپەر ئەدمین <-> سەرپەرشتیارانی بەشەکان
@@ -3857,6 +3886,7 @@ function addEmployeeConfirm(){
   const hours = document.getElementById('newEmpHours').value.trim();
   if(!name){ showToast('ناوی کارمەند پێویستە'); return; }
   db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[targetDeptId,name,code,shiftType,hours,startDateToInt((document.getElementById('newEmpStartDate')||{}).value, targetDeptId)]);
+  logEmpHistory(lastInsertedEmpId(), 'created', '', deptNameById(targetDeptId));
   persistLocal();
   bumpDeptChange(targetDeptId, 'New', 'کارمەند', name);
   closeModal('addEmployeeModal');
@@ -3926,6 +3956,67 @@ function openEditEmployee(id){
   if(uniLinkB) uniLinkB.style.display = hasUniformPerm(deptId) ? '' : 'none';
   openModal('editEmployeeModal');
 }
+/* ===== مێژووی کارمەند ===== */
+function histActor(){
+  if(!currentUser) return '';
+  if(currentUser.role==='admin') return 'سوپەر ئەدمین';
+  if(currentUser.role==='limited_admin') return currentUser.name || 'ئەدمینی سنوردار';
+  return currentUser.deptName || 'سەرپەرشتیار';
+}
+function deptNameById(id){
+  const r = db.exec(`SELECT name FROM departments WHERE id=${parseInt(id,10)||0}`);
+  return (r.length && r[0].values.length) ? String(r[0].values[0][0]||'') : '';
+}
+function logEmpHistory(empId, event, oldV, newV){
+  if(!empId || !db) return;
+  try{
+    db.run(`INSERT INTO employee_history (employee_id,event,old_value,new_value,happened_at,actor) VALUES (?,?,?,?,?,?)`,
+      [empId, event, oldV==null?'':String(oldV), newV==null?'':String(newV), new Date().toISOString(), histActor()]);
+  }catch(e){}
+}
+function lastInsertedEmpId(){
+  const r = db.exec(`SELECT last_insert_rowid()`);
+  return (r.length && r[0].values.length) ? r[0].values[0][0] : null;
+}
+function histFmtDate(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return String(iso||'');
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+function openEmpHistory(empId){
+  const id = empId || editingEmpId;
+  if(!id) return;
+  const info = db.exec(`SELECT e.name,e.emp_code,COALESCE(d.name,'-') FROM employees e LEFT JOIN departments d ON d.id=e.dept_id WHERE e.id=${id}`);
+  if(!info.length || !info[0].values.length) return;
+  const [name,code,deptName] = info[0].values[0];
+  document.getElementById('empHistHeader').textContent = name + (code ? ` (${String(code).toUpperCase()})` : '');
+  const res = db.exec(`SELECT event,old_value,new_value,happened_at,actor FROM employee_history WHERE employee_id=${id} ORDER BY happened_at ASC, id ASC`);
+  const rows = res.length ? res[0].values : [];
+  // دیاریکردنی «گەڕایەوە»: ئەگەر بۆ بەشێک گوازرایەوە کە پێشتر تێیدا بووە
+  const visited = new Set();
+  const items = rows.map(([ev,oldV,newV,ts,actor])=>{
+    let icon='•', text='';
+    if(ev==='created'){ icon='➕'; text = `زیادکرا بۆ بەشی «${escapeHtml(newV)}»`; visited.add(newV); }
+    else if(ev==='moved'){
+      visited.add(oldV);
+      const back = visited.has(newV);
+      icon = back ? '↩️' : '🔁';
+      text = back ? `گەڕایەوە بۆ بەشی «${escapeHtml(newV)}» (لە «${escapeHtml(oldV)}»)` : `گوازرایەوە لە «${escapeHtml(oldV)}» بۆ «${escapeHtml(newV)}»`;
+      visited.add(newV);
+    }
+    else if(ev==='name'){ icon='✏️'; text = `ناو گۆڕدرا: «${escapeHtml(oldV)}» ← «${escapeHtml(newV)}»`; }
+    else if(ev==='code'){ icon='🔢'; text = `کۆد گۆڕدرا: ${escapeHtml(oldV||'-')} ← ${escapeHtml(newV||'-')}`; }
+    else if(ev==='start'){ icon='🗓'; text = `بەرواری دەستپێک گۆڕدرا: ${escapeHtml(oldV||'-')} ← ${escapeHtml(newV||'-')}`; }
+    else text = escapeHtml(ev);
+    return {icon,text,date:histFmtDate(ts),actor};
+  }).reverse(); // نوێترین لە سەرەوە
+  const moves = rows.filter(r=>r[0]==='moved').length;
+  document.getElementById('empHistSummary').textContent = `بەشی ئێستا: ${deptName} • ${moves} جار گوازراوەتەوە`;
+  const list = document.getElementById('empHistList');
+  list.innerHTML = items.length ? items.map(it=>`<div class="uniLine" style="align-items:flex-start;"><span>${it.icon} ${it.text}${it.actor?`<div class="muted" style="font-size:11px;">${escapeHtml(it.actor)}</div>`:''}</span><span class="uniDate">${it.date}</span></div>`).join('')
+    : '<div class="muted" style="text-align:center;padding:16px 0;font-size:13px;">هیچ مێژوویەک نییە. گۆڕانکارییەکان لەم کاتەوە تۆمار دەکرێن</div>';
+  openModal('empHistoryModal');
+}
 function saveEmployeeEdit(){
   if(!hasPerm('edit', editingEmpDeptId)){ showToast('🔒 دەسەڵاتی دەستکاریکردنی کارمەندت لەم بەشەدا نییە'); return; }
   const name = document.getElementById('editEmpName').value.trim();
@@ -3956,7 +4047,13 @@ function saveEmployeeEdit(){
       }
     }
   }
+  const histOld = db.exec(`SELECT name,emp_code FROM employees WHERE id=${editingEmpId}`);
+  const histOldName = (histOld.length && histOld[0].values.length) ? String(histOld[0].values[0][0]||'') : '';
+  const histOldCode = (histOld.length && histOld[0].values.length) ? String(histOld[0].values[0][1]||'') : '';
   db.run(`UPDATE employees SET name=?, emp_code=?, dept_id=?, shift_type=?, hours=? WHERE id=?`,[name,code,newDeptId,shiftType,hours,editingEmpId]);
+  if(histOldName !== name) logEmpHistory(editingEmpId, 'name', histOldName, name);
+  if(histOldCode !== code) logEmpHistory(editingEmpId, 'code', histOldCode, code);
+  if(newDeptId !== editingEmpDeptId) logEmpHistory(editingEmpId, 'moved', deptNameById(editingEmpDeptId), deptNameById(newDeptId));
 
   // گواستنەوە بۆ بەشێکی تر: هیچ تۆمارێکی پێشوو ناگوازرێتەوە و بە ئامادە نایژمێرێت
   if(newDeptId !== editingEmpDeptId){
@@ -3976,6 +4073,7 @@ function saveEmployeeEdit(){
       }else if(v){
         const sInt = parseInt(v.replace(/-/g,''),10);
         db.run(`UPDATE employees SET dept_since=?, since_blank=0 WHERE id=?`,[sInt, editingEmpId]);
+        logEmpHistory(editingEmpId, 'start', editEmpSinceInitial, v);
 
       }else{
         db.run(`UPDATE employees SET dept_since=NULL, since_blank=0 WHERE id=?`,[editingEmpId]);
@@ -4051,6 +4149,7 @@ function confirmDeleteEmployee(){
     const delEmpName = (delNameRes.length && delNameRes[0].values.length) ? delNameRes[0].values[0][0] : '';
     db.run(`DELETE FROM employee_attendance WHERE employee_id=${empId}`);
     db.run(`DELETE FROM employee_uniform WHERE employee_id=${empId}`);
+    db.run(`DELETE FROM employee_history WHERE employee_id=${empId}`);
     db.run(`DELETE FROM employees WHERE id=${empId}`);
     persistLocal();
     bumpDeptChange(empDeptId, 'Del', 'کارمەند', delEmpName);
@@ -4277,6 +4376,7 @@ function confirmClearDeptMonth(){
       // کارمەندەکانی ئەو مانگە لەگەڵ هەموو داتاکانیان
       db.run(`DELETE FROM employee_attendance WHERE employee_id IN (${ids.join(',')})`);
       db.run(`DELETE FROM employee_uniform WHERE employee_id IN (${ids.join(',')})`);
+      db.run(`DELETE FROM employee_history WHERE employee_id IN (${ids.join(',')})`);
       db.run(`DELETE FROM employees WHERE id IN (${ids.join(',')})`);
     }
     // تۆمارەکانی ئەم بەشە لەو مانگەدا (بۆ ئەو کارمەندانەی لە بەشێکی تر ماونەتەوە)
@@ -4384,6 +4484,7 @@ function processBulkAddEmployees(){
     if(shiftType!=='ڕۆژ' && shiftType!=='شەو') shiftType='ڕۆژ';
     const hours = (item.hours || item['کات'] || '').toString().trim();
     db.run(`INSERT INTO employees (dept_id,name,emp_code,shift_type,hours,dept_since) VALUES (?,?,?,?,?,?)`,[deptDetailId,name,code,shiftType,hours,startDateToInt(item.start_date || item['ڕۆژی دەستپێک'] || bulkDefault, deptDetailId)]);
+    logEmpHistory(lastInsertedEmpId(), 'created', '', deptNameById(deptDetailId));
     added++;
   });
   persistLocal();
@@ -5603,6 +5704,7 @@ function saveDeptEdit(){
 function deleteDept(){
   if(!confirm('دڵنیایت لە سڕینەوەی ئەم بەشە و هەموو داتاکانی؟')) return;
   db.run(`DELETE FROM employee_uniform WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
+  db.run(`DELETE FROM employee_history WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
   db.run(`DELETE FROM employee_attendance WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
   db.run(`DELETE FROM employee_attendance WHERE dept_id=${editingDeptId}`);
   db.run(`DELETE FROM attendance WHERE dept_id=${editingDeptId}`);
