@@ -1307,6 +1307,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <button class="btn btn-outline" style="width:100%;margin-bottom:10px;" id="saveEmpEditBtn" onclick="saveEmployeeEdit()">💾 پاشەکەوتکردن</button>
     <button class="btn btn-outline" style="display:none;width:100%;margin-bottom:10px;" id="empUniformLinkBtn" onclick="openUniformModal(editingEmpId)">👕 پۆشاک و پێڵاو</button>
+    <button class="btn btn-outline" style="display:none;width:100%;margin-bottom:10px;border-color:#c0392b;color:#c0392b;" id="empPurgeBtn" onclick="openPurgeAtt()">🧹 سڕینەوەی ڕۆژانەی بەشە هەڵەکە</button>
     <button class="btn btn-danger" style="width:100%;" id="deleteEmpBtn" onclick="deleteEmployee()">🗑️ سڕینەوەی کارمەند</button>
   </div>
 </div>
@@ -1483,7 +1484,47 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
     </div>
     <div id="empHistHeader" style="font-size:13.5px;font-weight:800;margin-bottom:4px;"></div>
     <div id="empHistSummary" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
-    <div id="empHistList" style="max-height:60vh;overflow-y:auto;"></div>
+    <div id="empHistList" style="max-height:40vh;overflow-y:auto;"></div>
+    <div class="dupTitle">📅 ڕیکۆردەکانی ئامادەبوون بەپێی بەش</div>
+    <div id="empHistRecords"></div>
+  </div>
+</div>
+
+<div class="overlay" id="empRecDelModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div class="modalHead">
+      <h3>🗑️ سڕینەوەی ڕیکۆردەکان</h3>
+      <button class="closeX" onclick="closeModal('empRecDelModal')">✕</button>
+    </div>
+    <p id="empRecDelText" class="muted" style="font-size:13px;margin:0 0 10px;line-height:1.7;"></p>
+    <p class="muted" style="font-size:12px;margin:0 0 14px;">ئەم کردارە هەڵناوەشێتەوە. تکایە وشەی نهێنی سوپەر ئەدمین بنووسە</p>
+    <div class="pinField"><div id="empRecDelPassBoxes"></div><input type="hidden" id="empRecDelPass"><button type="button" class="pinEye" id="empRecDelPassEye" onclick="togglePinVisibility('empRecDelPassBoxes','empRecDelPassEye')">👁️ پیشاندان</button></div>
+    <div id="empRecDelError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal('empRecDelModal')">پاشگەزبوونەوە</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="confirmEmpRecDelete()">🗑️ سڕینەوە</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="purgeAttModal">
+  <div class="modal" style="max-width:400px;text-align:center;">
+    <div class="modalHead">
+      <h3>🧹 سڕینەوەی ڕۆژانەی بەشێک</h3>
+      <button class="closeX" onclick="closeModal('purgeAttModal')">✕</button>
+    </div>
+    <p id="purgeEmpName" style="font-size:13.5px;font-weight:800;margin:0 0 8px;"></p>
+    <p class="muted" style="font-size:12px;margin:0 0 6px;text-align:right;">بەشی هەڵە</p>
+    <select id="purgeDeptSel" class="selectBox" style="width:100%;margin-bottom:8px;" onchange="onPurgeDeptChange()"></select>
+    <select id="purgeMonthSel" class="selectBox" style="width:100%;margin-bottom:8px;" onchange="updatePurgePreview()"></select>
+    <div id="purgePreview" style="font-size:12.5px;text-align:right;margin-bottom:10px;line-height:1.7;"></div>
+    <p class="muted" style="font-size:12px;margin:0 0 12px;">تەنها تۆمارەکانی ئامادەبوونی ئەو بەشە دەسڕدرێنەوە. کارمەندەکە و تۆمارەکانی بەشەکانی تر و پۆشاک دەمێنن. هەڵناوەشێتەوە. تکایە وشەی نهێنی سوپەر ئەدمین بنووسە</p>
+    <div class="pinField"><div id="purgeAttPassBoxes"></div><input type="hidden" id="purgeAttPass"><button type="button" class="pinEye" id="purgeAttPassEye" onclick="togglePinVisibility('purgeAttPassBoxes','purgeAttPassEye')">👁️ پیشاندان</button></div>
+    <div id="purgeAttError" style="color:var(--bad);font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal('purgeAttModal')">پاشگەزبوونەوە</button>
+      <button class="btn btn-danger" style="flex:1;" id="purgeAttConfirmBtn" onclick="confirmPurgeAtt()">🗑️ سڕینەوە</button>
+    </div>
   </div>
 </div>
 
@@ -2755,7 +2796,9 @@ buildPinBoxes('adminUnlockPinBoxes', 'adminUnlockPass', 8, ()=>submitAdminUnlock
 // هەمان ستایلی چوونەژوورەوە بۆ هەموو وشە نهێنیەکانی تر
 buildPinBoxes('deleteEmpPassBoxes', 'deleteEmpPass', 4, ()=>confirmDeleteEmployee());
 buildPinBoxes('deleteDayPassBoxes', 'deleteDayPass', 4, ()=>confirmDeleteDay());
+buildPinBoxes('purgeAttPassBoxes', 'purgeAttPass', 4, ()=>confirmPurgeAtt());
 buildPinBoxes('clearMonthPassBoxes', 'clearMonthPass', 4, ()=>confirmClearDeptMonth());
+buildPinBoxes('empRecDelPassBoxes', 'empRecDelPass', 4, ()=>confirmEmpRecDelete());
 buildPinBoxes('newDeptPassBoxes', 'newDeptPass', 4, null, {small:true});
 buildPinBoxes('editDeptPassBoxes', 'editDeptPass', 4, null, {small:true});
 buildPinBoxes('laPassBoxes', 'laPass', 4, null, {small:true});
@@ -3952,6 +3995,8 @@ function openEditEmployee(id){
   if(saveBtn) saveBtn.style.display = editable ? '' : 'none';
   if(delBtn) delBtn.style.display = hasPerm('delete', deptId) ? '' : 'none';
 
+  const purgeB = document.getElementById('empPurgeBtn');
+  if(purgeB) purgeB.style.display = (currentUser && currentUser.role==='admin') ? '' : 'none';
   const uniLinkB = document.getElementById('empUniformLinkBtn');
   if(uniLinkB) uniLinkB.style.display = hasUniformPerm(deptId) ? '' : 'none';
   openModal('editEmployeeModal');
@@ -3983,9 +4028,11 @@ function histFmtDate(iso){
   if(isNaN(d)) return String(iso||'');
   return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 }
-function openEmpHistory(empId){
+let histEmpId = null;
+function openEmpHistory(empId, keepOpen){
   const id = empId || editingEmpId;
   if(!id) return;
+  histEmpId = id;
   const info = db.exec(`SELECT e.name,e.emp_code,COALESCE(d.name,'-') FROM employees e LEFT JOIN departments d ON d.id=e.dept_id WHERE e.id=${id}`);
   if(!info.length || !info[0].values.length) return;
   const [name,code,deptName] = info[0].values[0];
@@ -4006,6 +4053,8 @@ function openEmpHistory(empId){
     }
     else if(ev==='name'){ icon='✏️'; text = `ناو گۆڕدرا: «${escapeHtml(oldV)}» ← «${escapeHtml(newV)}»`; }
     else if(ev==='code'){ icon='🔢'; text = `کۆد گۆڕدرا: ${escapeHtml(oldV||'-')} ← ${escapeHtml(newV||'-')}`; }
+    else if(ev==='recdel'){ icon='🗑️'; text = `ڕیکۆردەکانی بەشی «${escapeHtml(oldV)}» سڕانەوە (${escapeHtml(newV)})`; }
+    else if(ev==='purge'){ icon='🧹'; text = `${escapeHtml(newV)} تۆماری ڕۆژانەی بەشی «${escapeHtml(oldV)}» سڕدرایەوە`; }
     else if(ev==='start'){ icon='🗓'; text = `بەرواری دەستپێک گۆڕدرا: ${escapeHtml(oldV||'-')} ← ${escapeHtml(newV||'-')}`; }
     else text = escapeHtml(ev);
     return {icon,text,date:histFmtDate(ts),actor};
@@ -4015,7 +4064,175 @@ function openEmpHistory(empId){
   const list = document.getElementById('empHistList');
   list.innerHTML = items.length ? items.map(it=>`<div class="uniLine" style="align-items:flex-start;"><span>${it.icon} ${it.text}${it.actor?`<div class="muted" style="font-size:11px;">${escapeHtml(it.actor)}</div>`:''}</span><span class="uniDate">${it.date}</span></div>`).join('')
     : '<div class="muted" style="text-align:center;padding:16px 0;font-size:13px;">هیچ مێژوویەک نییە. گۆڕانکارییەکان لەم کاتەوە تۆمار دەکرێن</div>';
-  openModal('empHistoryModal');
+  renderEmpRecordsByDept(id);
+  if(!keepOpen) openModal('empHistoryModal');
+}
+function renderEmpRecordsByDept(id){
+  const box = document.getElementById('empHistRecords');
+  if(!box) return;
+  const isAdmin = !!(currentUser && currentUser.role==='admin');
+  const r = db.exec(`SELECT COALESCE(ea.dept_id,e.dept_id),ea.year,ea.month,COUNT(*) FROM employee_attendance ea JOIN employees e ON e.id=ea.employee_id WHERE ea.employee_id=${id} GROUP BY 1,2,3 ORDER BY 1,2,3`);
+  const cur = db.exec(`SELECT dept_id FROM employees WHERE id=${id}`);
+  const curDept = (cur.length && cur[0].values.length) ? cur[0].values[0][0] : null;
+  const depts = new Map();
+  if(r.length) r[0].values.forEach(([did,y,m,c])=>{
+    if(!depts.has(did)) depts.set(did,{total:0,months:[]});
+    const d = depts.get(did); d.total += c; d.months.push({y,m,c});
+  });
+  if(!depts.size){ box.innerHTML = '<div class="muted" style="font-size:12px;">هیچ ڕیکۆردێکی ئامادەبوون نییە</div>'; return; }
+  box.innerHTML = [...depts.entries()].map(([did,d])=>{
+    const nm = did ? (deptNameById(did) || ('#'+did)) : 'بەشی نادیار';
+    const opts = `<option value="all">هەموو مانگەکان (${d.total})</option>` + d.months.slice().reverse().map(x=>`<option value="${x.y}-${x.m}">${KURDISH_MONTHS[x.m-1]} ${x.y} (${x.c})</option>`).join('');
+    const ctrl = isAdmin ? `<div style="display:flex;gap:6px;margin-top:6px;"><select id="recMonthSel_${did}" class="selectBox" style="flex:1;">${opts}</select><button class="btn btn-outline btn-sm" style="color:#c0392b;border-color:#c0392b;" onclick="askEmpRecDelete(${did})">🗑️ سڕینەوە</button></div>` : '';
+    return `<div class="dupGroup"><div class="dupGroupHead" style="justify-content:space-between;margin-bottom:0;"><span>${escapeHtml(nm)}${did===curDept?' <span class="dupBadge">بەشی ئێستا</span>':''}</span><span class="dupBadge">${d.total} ڕیکۆرد</span></div>${ctrl}</div>`;
+  }).join('');
+}
+let recDelState = null;
+function askEmpRecDelete(did){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
+  const sel = document.getElementById('recMonthSel_'+did);
+  const val = sel ? sel.value : 'all';
+  const label = sel ? sel.options[sel.selectedIndex].text : '';
+  recDelState = {did, val};
+  const nm = did ? deptNameById(did) : 'بەشی نادیار';
+  const empName = document.getElementById('empHistHeader').textContent;
+  document.getElementById('empRecDelText').innerHTML = `ڕیکۆردەکانی ئامادەبوونی <b>${escapeHtml(empName)}</b> لە بەشی <b>«${escapeHtml(nm)}»</b><br>${escapeHtml(label)}<br>دەسڕدرێنەوە. ڕیکۆردەکانی بەشەکانی تر ناسڕدرێنەوە.`;
+  pinClear('empRecDelPassBoxes');
+  document.getElementById('empRecDelError').textContent = '';
+  openModal('empRecDelModal');
+  pinFocus('empRecDelPassBoxes');
+}
+function confirmEmpRecDelete(){
+  const host = document.getElementById('empRecDelPassBoxes');
+  if(host && host.classList.contains('success')) return;
+  if(!recDelState || !histEmpId) return;
+  const errEl = document.getElementById('empRecDelError');
+  if(!(currentUser && currentUser.role==='admin')){ errEl.textContent = 'تەنها سوپەر ئەدمین'; return; }
+  const pass = document.getElementById('empRecDelPass').value;
+  if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
+  if(pwGuard(errEl)) return;
+  const sa = getSetting('admin_password');
+  if(sa==null || pass !== sa){ pwFail(errEl,'empRecDelPassBoxes'); return; }
+  errEl.textContent = '';
+  resetLoginLockState();
+  const {did,val} = recDelState;
+  const empId = histEmpId;
+  pinSuccess('empRecDelPassBoxes', ()=>{
+    const baseCond = `employee_id=? AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=?`;
+    let where = baseCond, params = [empId, did];
+    let monthTxt = 'هەموو مانگەکان';
+    if(val!=='all'){
+      const [y,m] = val.split('-').map(Number);
+      where += ` AND year=? AND month=?`; params.push(y,m);
+      monthTxt = `${KURDISH_MONTHS[m-1]} ${y}`;
+    }
+    const cnt = db.exec(`SELECT COUNT(*) FROM employee_attendance WHERE ${where}`, params);
+    const n = (cnt.length && cnt[0].values.length) ? cnt[0].values[0][0] : 0;
+    db.run(`DELETE FROM employee_attendance WHERE ${where}`, params);
+    logEmpHistory(empId, 'recdel', did ? deptNameById(did) : 'بەشی نادیار', `${n} ڕیکۆرد • ${monthTxt}`);
+    persistLocal();
+    try{ if(did) bumpDeptChange(did, 'Del', 'ڕیکۆردی کارمەند', document.getElementById('empHistHeader').textContent); }catch(e){}
+    closeModal('empRecDelModal');
+    pinClear('empRecDelPassBoxes');
+    recDelState = null;
+    openEmpHistory(empId, true);
+    try{ renderEmployeesList(); }catch(e){}
+    try{ if(deptDetailId) renderDeptDetailEmployees(); }catch(e){}
+    try{ renderCalendar(); }catch(e){}
+    try{ renderMonthlyReport(); }catch(e){}
+    showToast(`${n} ڕیکۆرد سڕایەوە 🗑️`);
+    debouncedSync();
+  });
+}
+/* ===== سڕینەوەی ڕۆژانەی بەشێکی هەڵە (تەنها سوپەر ئەدمین، بە وشەی نهێنی) ===== */
+let purgeEmpId = null;
+function purgeDeptRows(){
+  const r = db.exec(`SELECT COALESCE(ea.dept_id,e.dept_id), COUNT(*) FROM employee_attendance ea JOIN employees e ON e.id=ea.employee_id WHERE ea.employee_id=${purgeEmpId} GROUP BY COALESCE(ea.dept_id,e.dept_id)`);
+  return r.length ? r[0].values : [];
+}
+function purgeDeptName(did){ return did ? (deptNameById(did) || ('#'+did)) : 'بەشی نادیار'; }
+function openPurgeAtt(){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
+  if(!editingEmpId) return;
+  purgeEmpId = editingEmpId;
+  const info = db.exec(`SELECT name,dept_id FROM employees WHERE id=${purgeEmpId}`);
+  const [ename, curDept] = (info.length && info[0].values.length) ? info[0].values[0] : ['',null];
+  document.getElementById('purgeEmpName').textContent = ename;
+  const rows = purgeDeptRows();
+  const sel = document.getElementById('purgeDeptSel');
+  const btn = document.getElementById('purgeAttConfirmBtn');
+  if(!rows.length){
+    sel.innerHTML = '<option value="">هیچ تۆمارێکی ڕۆژانە نییە</option>';
+    sel.disabled = true; if(btn) btn.disabled = true;
+    document.getElementById('purgeMonthSel').innerHTML = '';
+    document.getElementById('purgePreview').textContent = '';
+  }else{
+    sel.disabled = false; if(btn) btn.disabled = false;
+    sel.innerHTML = rows.map(([did,c])=>`<option value="${did||0}">${escapeHtml(purgeDeptName(did))}${did===curDept?' (بەشی ئێستا)':''} — ${c} ڕۆژ</option>`).join('');
+    onPurgeDeptChange();
+  }
+  pinClear('purgeAttPassBoxes');
+  document.getElementById('purgeAttError').textContent = '';
+  openModal('purgeAttModal');
+  pinFocus('purgeAttPassBoxes');
+}
+function purgeWhere(did, y, m){
+  return `employee_id=${purgeEmpId} AND COALESCE(dept_id,(SELECT dept_id FROM employees WHERE id=employee_attendance.employee_id))=${did}` + ((y && m) ? ` AND year=${y} AND month=${m}` : '');
+}
+function onPurgeDeptChange(){
+  const did = parseInt(document.getElementById('purgeDeptSel').value,10) || 0;
+  const r = db.exec(`SELECT year,month,COUNT(*) FROM employee_attendance WHERE ${purgeWhere(did)} GROUP BY year,month ORDER BY year DESC,month DESC`);
+  const total = r.length ? r[0].values.reduce((a,v)=>a+v[2],0) : 0;
+  let o = `<option value="all">هەموو مانگەکان (${total})</option>`;
+  if(r.length) r[0].values.forEach(([y,m,c])=>{ o += `<option value="${y}-${m}">${KURDISH_MONTHS[m-1]} ${y} (${c})</option>`; });
+  document.getElementById('purgeMonthSel').innerHTML = o;
+  updatePurgePreview();
+}
+function updatePurgePreview(){
+  const did = parseInt(document.getElementById('purgeDeptSel').value,10) || 0;
+  const mv = document.getElementById('purgeMonthSel').value;
+  let y=0,m=0; if(mv && mv!=='all'){ [y,m] = mv.split('-').map(Number); }
+  const r = db.exec(`SELECT COUNT(*), MIN(year*10000+month*100+day), MAX(year*10000+month*100+day) FROM employee_attendance WHERE ${purgeWhere(did,y,m)}`);
+  const [c,mn,mx] = (r.length && r[0].values.length) ? r[0].values[0] : [0,null,null];
+  document.getElementById('purgePreview').innerHTML = c ? `<b>${c} تۆمار دەسڕدرێنەوە</b> (${uniFmt(mn)} تا ${uniFmt(mx)}) لە بەشی «${escapeHtml(purgeDeptName(did))}»` : '<span class="muted">هیچ تۆمارێک نییە</span>';
+}
+function confirmPurgeAtt(){
+  const host = document.getElementById('purgeAttPassBoxes');
+  if(host && host.classList.contains('success')) return;
+  const errEl = document.getElementById('purgeAttError');
+  if(!(currentUser && currentUser.role==='admin')){ errEl.textContent = 'تەنها سوپەر ئەدمین'; return; }
+  if(!purgeEmpId) return;
+  const did = parseInt(document.getElementById('purgeDeptSel').value,10) || 0;
+  const mv = document.getElementById('purgeMonthSel').value;
+  let y=0,m=0; if(mv && mv!=='all'){ [y,m] = mv.split('-').map(Number); }
+  const cnt0 = db.exec(`SELECT COUNT(*) FROM employee_attendance WHERE ${purgeWhere(did,y,m)}`);
+  const n = (cnt0.length && cnt0[0].values.length) ? cnt0[0].values[0][0] : 0;
+  if(!n){ errEl.textContent = 'هیچ تۆمارێک بۆ سڕینەوە نییە'; return; }
+  const pass = document.getElementById('purgeAttPass').value;
+  if(!pass){ errEl.textContent = 'تکایە وشەی نهێنی بنووسە'; return; }
+  if(pwGuard(errEl)) return;
+  const superAdminPass = getSetting('admin_password');
+  if(superAdminPass==null || pass !== superAdminPass){
+    pwFail(errEl,'purgeAttPassBoxes');
+    return;
+  }
+  errEl.textContent = '';
+  resetLoginLockState();
+  pinSuccess('purgeAttPassBoxes', ()=>{
+    const dname = purgeDeptName(did);
+    db.run(`DELETE FROM employee_attendance WHERE ${purgeWhere(did,y,m)}`);
+    logEmpHistory(purgeEmpId, 'purge', dname, n);
+    persistLocal();
+    if(did) { try{ bumpDeptChange(did, 'Del', 'ڕۆژانە', dname); }catch(e){} }
+    closeModal('purgeAttModal');
+    pinClear('purgeAttPassBoxes');
+    try{ renderEmployeesList(); }catch(e){}
+    try{ if(deptDetailId) renderDeptDetailEmployees(); }catch(e){}
+    try{ renderCalendar(); }catch(e){}
+    try{ renderMonthlyReport(); }catch(e){}
+    showToast(`${n} تۆماری ڕۆژانەی بەشی ${dname} سڕانەوە 🗑️`);
+    debouncedSync();
+  });
 }
 function saveEmployeeEdit(){
   if(!hasPerm('edit', editingEmpDeptId)){ showToast('🔒 دەسەڵاتی دەستکاریکردنی کارمەندت لەم بەشەدا نییە'); return; }
