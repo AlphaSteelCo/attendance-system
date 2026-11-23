@@ -738,7 +738,7 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   #deptDetailAddBtns{flex-wrap:nowrap;gap:6px;}
   #deptDetailAddBtns .btn{white-space:nowrap;font-size:12px;padding-inline:8px;min-width:0;}
   #deptDetailAddBtns #deptDetailAddEmpBtn, #deptDetailAddBtns #deptDetailJsonBtn{flex:1 1 0;overflow:hidden;text-overflow:ellipsis;}
-  #deptDetailAddBtns .deptGoBtn{flex:0 0 auto;font-size:18px;padding:0 11px;}
+  .modalHead .deptGoBtn{height:32px;padding:0 11px;font-size:17px;border-radius:999px;margin:0;}
   .uniDate{display:inline-block;padding:2px 9px;border-radius:7px;background:#eef0ea;font-weight:700;font-size:12.5px;}
   .uniDate.old{background:#e53935;color:#fff;}
   .uniBtn.has{background:#e3f4ea;border-color:#2e9e5b;color:#1e7a43;}
@@ -1124,12 +1124,14 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   <div class="modal modalFlex">
     <div class="stickyModalTop">
       <div class="modalHead">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
         <h3 id="deptDetailTitle">بەش</h3>
+        <button class="btn btn-outline btn-sm deptGoBtn" id="deptDetailDailyBtn" title="ڕۆژانە" onclick="goToDeptPage('daily')">📅</button>
+        </div>
         <button class="closeX" onclick="closeModal(&#39;deptDetailModal&#39;)">✕</button>
       </div>
       <div class="rowbetween" style="margin-bottom:10px;" id="deptDetailAddBtns">
         <button class="btn btn-outline btn-sm" id="deptDetailAddEmpBtn" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
-        <button class="btn btn-outline btn-sm deptGoBtn" id="deptDetailDailyBtn" title="ڕۆژانە" onclick="goToDeptPage('daily')">📅</button>
         <button class="btn btn-outline btn-sm" id="deptDetailJsonBtn" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
         <button class="btn btn-sm" id="deptDetailClearMonthBtn" style="display:none;background:#fff;color:#c0392b;border:1.5px solid #c0392b;" onclick="openClearDeptMonth(deptDetailId)">🗑️ سڕینەوەی داتای مانگانە</button>
       </div>
@@ -4512,7 +4514,7 @@ function openDeptDetail(id){
   if(jsonB) jsonB.style.display = (isResDept || !hasPerm('add') || !isSuperAdminUser()) ? 'none' : '';
   if(addB) addB.style.display = hasPerm('add') ? '' : 'none';
   if(clrB) clrB.style.display = canClear ? '' : 'none';
-  if(addBtnsWrap) addBtnsWrap.style.display = (hasPerm('add') || canClear || showGo) ? '' : 'none';
+  if(addBtnsWrap) addBtnsWrap.style.display = (hasPerm('add') || canClear) ? '' : 'none';
   renderDeptDetailEmployees();
   closeModal('allDeptsModal');
   openModal('deptDetailModal');
