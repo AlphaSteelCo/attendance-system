@@ -1125,7 +1125,6 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
       <div class="rowbetween" style="margin-bottom:10px;" id="deptDetailAddBtns">
         <button class="btn btn-outline btn-sm" id="deptDetailAddEmpBtn" onclick="openAddEmployeeForDetail()">➕ زیادکردنی کارمەند</button>
         <button class="btn btn-outline btn-sm deptGoBtn" id="deptDetailDailyBtn" title="ڕۆژانە" onclick="goToDeptPage('daily')">📅</button>
-        <button class="btn btn-outline btn-sm deptGoBtn" id="deptDetailMonthlyBtn" title="مانگانە" onclick="goToDeptPage('monthly')">📊</button>
         <button class="btn btn-outline btn-sm" id="deptDetailJsonBtn" onclick="openBulkAddModal()">📋 زیادکردن بە JSON</button>
         <button class="btn btn-sm" id="deptDetailClearMonthBtn" style="display:none;background:#fff;color:#c0392b;border:1.5px solid #c0392b;" onclick="openClearDeptMonth(deptDetailId)">🗑️ سڕینەوەی داتای مانگانە</button>
       </div>
@@ -4493,7 +4492,7 @@ function openDeptDetail(id){
   deptDetailId = id;
   clearDeptChange(id);
   const showGo = !(currentUser && currentUser.uniformOnly) && !isClearMonthDept(id);
-  ['deptDetailDailyBtn','deptDetailMonthlyBtn'].forEach(bid=>{ const b=document.getElementById(bid); if(b) b.style.display = showGo ? '' : 'none'; });
+  ['deptDetailDailyBtn'].forEach(bid=>{ const b=document.getElementById(bid); if(b) b.style.display = showGo ? '' : 'none'; });
   const res = db.exec(`SELECT name FROM departments WHERE id=${id}`);
   const deptName = res.length && res[0].values.length ? res[0].values[0][0] : '';
   document.getElementById('deptDetailTitle').textContent = deptName;
