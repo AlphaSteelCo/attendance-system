@@ -5918,6 +5918,7 @@ function renderDeptsList(){
   });
 }
 function addDepartment(){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
   const name = document.getElementById('newDeptName').value.trim();
   const pass = document.getElementById('newDeptPass').value.trim();
   if(!name||!pass){ showToast('ناو و وشەی نهێنی پێویستە'); return; }
@@ -5932,6 +5933,7 @@ function addDepartment(){
   showToast('بەش زیاد کرا ✓');
 }
 function openEditDept(id){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
   editingDeptId = id;
   clearDeptChange(id);
   const res = db.exec(`SELECT name,password,edit_start,edit_duration_min,phone FROM departments WHERE id=${id}`);
@@ -5949,6 +5951,7 @@ function openEditDept(id){
   openModal('deptEditModal');
 }
 function saveDeptEdit(){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
   const name = document.getElementById('editDeptName').value.trim();
   const pass = document.getElementById('editDeptPass').value.trim();
   if(!name||!pass) return;
@@ -5967,6 +5970,7 @@ function saveDeptEdit(){
   showToast('گۆڕانکاری هەڵگیرا ✓');
 }
 function deleteDept(){
+  if(!(currentUser && currentUser.role==='admin')){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
   if(!confirm('دڵنیایت لە سڕینەوەی ئەم بەشە و هەموو داتاکانی؟')) return;
   db.run(`DELETE FROM employee_uniform WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
   db.run(`DELETE FROM employee_history WHERE employee_id IN (SELECT id FROM employees WHERE dept_id=${editingDeptId})`);
