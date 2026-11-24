@@ -1897,6 +1897,16 @@ function ensureSchema(){
   db.run(`CREATE INDEX IF NOT EXISTS idx_uniform_emp ON employee_uniform (employee_id, item)`);
   // کۆگا: کۆی پۆشاک و پێڵاو کە هەیە
   db.run(`CREATE TABLE IF NOT EXISTS uniform_stock (item TEXT PRIMARY KEY, qty INTEGER NOT NULL DEFAULT 0)`);
+  // ڕیزبەندی بەشەکان (بۆ لیستی هەڵبژاردن و «هەموو بەشەکان»)
+  {
+    const dci = db.exec(`PRAGMA table_info(departments)`);
+    const dcols = dci.length ? dci[0].values.map(v=>v[1]) : [];
+    if(!dcols.includes('sort_order')){
+      db.run(`ALTER TABLE departments ADD COLUMN sort_order INTEGER`);
+      const cur = db.exec(`SELECT id FROM departments ORDER BY COALESCE(sort_order,999999), name`);
+      if(cur.length) cur[0].values.forEach(([did],i)=>{ db.run(`UPDATE departments SET sort_order=? WHERE id=?`,[i+1,did]); });
+    }
+  }
   // مێژووی کارمەند: گواستنەوە، گۆڕینی ناو و کۆد، زیادکردن
   {
     const histExisted = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='employee_history'`).length > 0;
@@ -3088,9 +3098,9 @@ function fillDeptPicker(){
       renderDeptPickerDropdown(); updateDeptPickerLabel();
       return;
     }
-    res = db.exec(`SELECT id,name FROM departments WHERE id IN (${visibleIds.join(',')}) ORDER BY name`);
+    res = db.exec(`SELECT id,name FROM departments WHERE id IN (${visibleIds.join(',')}) ORDER BY COALESCE(sort_order,999999), name`);
   } else {
-    res = db.exec(`SELECT id,name FROM departments ORDER BY name`);
+    res = db.exec(`SELECT id,name FROM departments ORDER BY COALESCE(sort_order,999999), name`);
   }
   deptPickerOptions = (res.length ? res[0].values : []).map(([id,name])=>({id,name}));
   if(deptPickerOptions.length){
@@ -3980,8 +3990,8 @@ function openEditEmployee(id){
     const sel = document.getElementById('editEmpDept');
     sel.innerHTML='';
     const depts = currentUser.role==='admin'
-      ? db.exec(`SELECT id,name FROM departments ORDER BY name`)
-      : db.exec(`SELECT id,name FROM departments WHERE id IN (${currentUser.deptIds.join(',')}) ORDER BY name`);
+      ? db.exec(`SELECT id,name FROM departments ORDER BY COALESCE(sort_order,999999), name`)
+      : db.exec(`SELECT id,name FROM departments WHERE id IN (${currentUser.deptIds.join(',')}) ORDER BY COALESCE(sort_order,999999), name`);
     if(depts.length){
       depts[0].values.forEach(([did,dname])=>{
         const opt=document.createElement('option');
@@ -4457,8 +4467,8 @@ function renderAllDepartments(){
   }
 
   const res = visibleIds!==null
-    ? (visibleIds.length ? db.exec(`SELECT id,name FROM departments WHERE id IN (${visibleIds.join(',')}) ORDER BY name`) : [])
-    : db.exec(`SELECT id,name FROM departments ORDER BY name`);
+    ? (visibleIds.length ? db.exec(`SELECT id,name FROM departments WHERE id IN (${visibleIds.join(',')}) ORDER BY COALESCE(sort_order,999999), name`) : [])
+    : db.exec(`SELECT id,name FROM departments ORDER BY COALESCE(sort_order,999999), name`);
   if(!res.length || !res[0].values.length){
     wrap.innerHTML = '<div class="muted">هیچ بەشێک زیاد نەکراوە</div>';
   } else {
@@ -5867,10 +5877,25 @@ function openManageDepts(){
   renderDeptsList();
   openModal('deptsModal');
 }
+// جووڵاندنی بەش بۆ سەرەوە (-1) یان خوارەوە (+1) لە ڕیزبەندیدا
+function moveDept(id, dir){
+  if(!currentUser || currentUser.role!=='admin'){ showToast('🔒 تەنها سوپەر ئەدمین'); return; }
+  const r = db.exec(`SELECT id FROM departments ORDER BY COALESCE(sort_order,999999), name`);
+  const ids = r.length ? r[0].values.map(v=>v[0]) : [];
+  const i = ids.indexOf(id), j = i + dir;
+  if(i<0 || j<0 || j>=ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  ids.forEach((did,k)=>{ db.run(`UPDATE departments SET sort_order=? WHERE id=?`,[k+1,did]); });
+  persistLocal();
+  renderDeptsList();
+  try{ fillDeptPicker(); }catch(e){}
+  try{ const m=document.getElementById('allDeptsModal'); if(m && m.classList.contains('show')) renderAllDepartments(); }catch(e){}
+  debouncedSync();
+}
 function renderDeptsList(){
   const wrap = document.getElementById('deptsList');
   wrap.innerHTML='';
-  const res = db.exec(`SELECT id,name,password,edit_start,edit_duration_min FROM departments ORDER BY name`);
+  const res = db.exec(`SELECT id,name,password,edit_start,edit_duration_min FROM departments ORDER BY COALESCE(sort_order,999999), name`);
   if(!res.length || !res[0].values.length){
     wrap.innerHTML='<div class="muted">هیچ بەشێک نییە</div>';
     return;
@@ -5888,7 +5913,7 @@ function renderDeptsList(){
     }
     div.innerHTML=`
       <div class="info"><b>${escapeHtml(name)}${deptChangeBadgeHtml(id)}</b><span>وشەی نهێنی: ${escapeHtml(pass)}${windowTxt}</span></div>
-      <div class="btns"><button class="btn btn-outline btn-sm" onclick="openEditDept(${id})">✏️</button></div>`;
+      <div class="btns"><button class="btn btn-outline btn-sm" title="بۆ سەرەوە" onclick="moveDept(${id},-1)">▲</button><button class="btn btn-outline btn-sm" title="بۆ خوارەوە" onclick="moveDept(${id},1)">▼</button><button class="btn btn-outline btn-sm" onclick="openEditDept(${id})">✏️</button></div>`;
     wrap.appendChild(div);
   });
 }
@@ -5896,7 +5921,7 @@ function addDepartment(){
   const name = document.getElementById('newDeptName').value.trim();
   const pass = document.getElementById('newDeptPass').value.trim();
   if(!name||!pass){ showToast('ناو و وشەی نهێنی پێویستە'); return; }
-  db.run(`INSERT INTO departments (name,password) VALUES (?,?)`,[name,pass]);
+  db.run(`INSERT INTO departments (name,password,sort_order) VALUES (?,?,(SELECT COALESCE(MAX(sort_order),0)+1 FROM departments))`,[name,pass]);
   persistLocal();
   document.getElementById('newDeptName').value='';
   document.getElementById('newDeptPass').value='';
@@ -6012,7 +6037,7 @@ function openEditLimitedAdmin(id){
 
   const deptsWrap = document.getElementById('laDeptsCheckboxes');
   deptsWrap.innerHTML='';
-  const allDepts = db.exec(`SELECT id,name FROM departments ORDER BY name`);
+  const allDepts = db.exec(`SELECT id,name FROM departments ORDER BY COALESCE(sort_order,999999), name`);
   if(allDepts.length && allDepts[0].values.length){
     allDepts[0].values.forEach(([did,dname])=>{
       const perm = deptPerms[did];
