@@ -550,6 +550,8 @@ const SQL_WASM_BASE64 = "AGFzbQEAAAABoARFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/YAF/AGA
   .lateTimeInline.show{display:flex;}
 
   /* ---------- سکرینی جیاواز بۆ تۆمارکردنی یەک کارمەند (ڕۆژانە) ---------- */
+  .nameLinkB{cursor:pointer;text-decoration:underline dotted;text-underline-offset:4px;-webkit-tap-highlight-color:transparent;}
+  .nameLinkB:active{opacity:.65;}
   .listItem .info.nameLink{cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .listItem .info.nameLink b{text-decoration:underline dotted;text-underline-offset:4px;}
   .listItem .info.nameLink:active{opacity:.65;}
@@ -3306,7 +3308,7 @@ function renderMonthlyReport(){
     const totalLabel = isResignationDept ? 'ڕۆژی استیقالە' : `کۆی ${a||0} ڕۆژ ئامادەنەبووە`;
     card.innerHTML = `
       <div class="absEmpHead">
-        <b class="absEmpName">${escapeHtml(name)}</b>
+        <b class="absEmpName nameLinkB" onclick="openEmpAbsencesById(${id})">${escapeHtml(name)}</b>
         ${codeChip}
         <span class="absBadgeTotal">${totalLabel}</span>
       </div>
@@ -3718,7 +3720,7 @@ function uniRepGroups(rows){
     if(!months.has(mk)) months.set(mk,new Map());
     const em = months.get(mk);
     const ek = r.eid+'|'+r.did;
-    if(!em.has(ek)) em.set(ek,{name:r.name,code:r.code,dname:r.dname,items:[]});
+    if(!em.has(ek)) em.set(ek,{eid:r.eid,name:r.name,code:r.code,dname:r.dname,items:[]});
     em.get(ek).items.push(r);
   });
   return months;
@@ -3746,7 +3748,7 @@ function renderUniformReport(){
         const ui = UNI_ITEMS[it.item]||{icon:'',label:it.item};
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;margin-top:3px;"><span>${ui.icon} ${ui.label}${it.size?` • سایز ${escapeHtml(it.size)}`:''}</span><span class="uniDate${(it.isLatest && uniIsOld(it.received))?' old':''}">${uniFmt(it.received)}</span></div>`;
       }).join('');
-      html += `<div class="dupGroup"><div class="dupGroupHead"><span class="uniNo">${rowNo}</span>${escapeHtml(e.name)}${e.code?` <span class="muted" style="font-weight:400;">(${escapeHtml(e.code)})</span>`:''} <span class="dupBadge">${escapeHtml(e.dname)}</span></div>${lines}</div>`;
+      html += `<div class="dupGroup"><div class="dupGroupHead"><span class="uniNo">${rowNo}</span><span class="nameLinkB" onclick="openEmpAbsencesById(${e.eid})">${escapeHtml(e.name)}</span>${e.code?` <span class="muted" style="font-weight:400;">(${escapeHtml(e.code)})</span>`:''} <span class="dupBadge">${escapeHtml(e.dname)}</span></div>${lines}</div>`;
     });
   });
   list.innerHTML = html;
@@ -5075,7 +5077,7 @@ function openDayModal(day){
     const hasNote = !!(dayNoteText[eid] && dayNoteText[eid].trim());
     row.innerHTML = `
       <div class="empInfoInline">
-        <b class="empNameInline">${escapeHtml(name)}</b>
+        <b class="empNameInline nameLinkB" onclick="openEmpAbsencesById(${eid})">${escapeHtml(name)}</b>
         ${codeBadge}
         ${shiftBadge}
         ${hoursBadge}
@@ -6260,7 +6262,7 @@ function scanDuplicateEmployees(){
     return groups.map(g=>{
       const sameDept = new Set(g.map(r=>r.deptId)).size < g.length;
       const head = `<div class="dupGroupHead">${escapeHtml(valueFn(g[0]))} <span class="dupBadge ${sameDept?'same':''}">${g.length} جار${sameDept?' • لە هەمان بەش':' • بەشی جیاواز'}</span></div>`;
-      const body = g.map(r=>`<div class="dupRow"><span>${escapeHtml(r.name)}${r.code?` <span class="muted">(${escapeHtml(r.code)})</span>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`).join('');
+      const body = g.map(r=>`<div class="dupRow"><span><span class="nameLinkB" onclick="openEmpAbsencesById(${r.id})">${escapeHtml(r.name)}</span>${r.code?` <span class="muted">(${escapeHtml(r.code)})</span>`:''}</span><span class="dupBadge">${escapeHtml(r.deptName)}</span></div>`).join('');
       return `<div class="dupGroup">${head}${body}</div>`;
     }).join('');
   };
