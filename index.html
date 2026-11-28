@@ -4460,7 +4460,7 @@ function renderAllDepartments(){
       div.className='listItem';
       div.style.cursor='pointer';
       div.innerHTML=`
-        <div class="info"><b>${escapeHtml(empName)}</b><span>${escapeHtml(extra)}</span></div>
+        <div class="info nameLink" onclick="event.stopPropagation();openEmpAbsencesById(${empId})"><b>${escapeHtml(empName)}</b><span>${escapeHtml(extra)}</span></div>
         <div class="btns"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditEmployee(${empId})">✏️</button></div>`;
       div.onclick = ()=>openDeptDetail(deptId);
       wrap.appendChild(div);
